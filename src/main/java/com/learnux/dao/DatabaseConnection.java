@@ -19,13 +19,14 @@ public class DatabaseConnection {
     private static String password;
 
     static {
-        // 1. Variable de entorno DATABASE_URL (Railway la inyecta automáticamente)
+        // 1. Variable de entorno DATABASE_URL (Railway / Render la inyectan automáticamente)
         String dbEnv = System.getenv("DATABASE_URL");
         if (dbEnv != null) {
             try {
-                java.net.URI uri = new java.net.URI(dbEnv);
-                String[] creds  = uri.getUserInfo().split(":");
-                url      = "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + uri.getPath();
+                java.net.URI uri  = new java.net.URI(dbEnv);
+                String[] creds   = uri.getUserInfo().split(":");
+                int port          = uri.getPort() == -1 ? 5432 : uri.getPort();
+                url      = "jdbc:postgresql://" + uri.getHost() + ":" + port + uri.getPath();
                 user     = creds[0];
                 password = creds[1];
             } catch (Exception e) {

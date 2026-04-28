@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: learnux-app
+    runtime: docker
+    # Cambiar a "starter" ($7/mes) para evitar que el servicio duerma tras 15 min de inactividad
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: learnux-db
+          property: connectionString
+
+databases:
+  - name: learnux-db
+    # El plan free de Render expira a los 90 días; considera "starter" para producción
+    plan: free
+    databaseName: learnux_db
+    user: learnux
