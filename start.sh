@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Redirigir la raíz "/" a vnc.html
-echo '<meta http-equiv="refresh" content="0; url=/vnc.html">' > /usr/share/novnc/index.html
+echo '<meta http-equiv="refresh" content="0; url=/vnc.html?autoconnect=1&resize=scale&show_dot=false">' > /usr/share/novnc/index.html
 
 # ── Sembrar base de datos si está vacía ──────────────────────
 if [ -n "$DATABASE_URL" ]; then
