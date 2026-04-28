@@ -3,6 +3,33 @@
 # Redirigir la raíz "/" a vnc.html
 echo '<meta http-equiv="refresh" content="0; url=/vnc.html">' > /usr/share/novnc/index.html
 
+# ── Sembrar base de datos si está vacía ──────────────────────
+if [ -n "$DATABASE_URL" ]; then
+    echo "=== Verificando base de datos ==="
+    # Espera hasta que la BD esté lista (máx 30s)
+    for i in $(seq 1 10); do
+        psql "$DATABASE_URL" -c "SELECT 1" &>/dev/null && break
+        echo "Esperando BD... intento $i"
+        sleep 3
+    done
+
+    SCHEMA_EXISTS=$(psql "$DATABASE_URL" -tAc \
+        "SELECT 1 FROM information_schema.schemata WHERE schema_name='learnux'" 2>/dev/null)
+
+    if [ "$SCHEMA_EXISTS" != "1" ]; then
+        echo "=== Sembrando base de datos (primera vez) ==="
+        # Limpia el comando \restrict de Railway y adapta owner al usuario actual
+        grep -v '\\restrict' /app/learnux_dump.sql \
+            | sed 's/OWNER TO postgres/OWNER TO current_user/g' \
+            | psql "$DATABASE_URL" -v ON_ERROR_STOP=0 2>&1
+        psql "$DATABASE_URL" -f /app/ejercicios_adicionales.sql -v ON_ERROR_STOP=0 2>&1
+        psql "$DATABASE_URL" -f /app/enriquecer_flags.sql        -v ON_ERROR_STOP=0 2>&1
+        echo "=== Siembra completada ==="
+    else
+        echo "=== Base de datos ya inicializada, omitiendo siembra ==="
+    fi
+fi
+
 # Pantalla virtual
 Xvfb :1 -screen 0 1360x840x24 -ac -noreset &
 export DISPLAY=:1

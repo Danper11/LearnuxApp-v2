@@ -24,11 +24,13 @@ RUN apt-get update && apt-get install -y \
         libxinerama1 \
         libxcursor1 \
         libxfixes3 \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /app/target/LearnuxApp-1.0-SNAPSHOT.jar app.jar
 COPY start.sh .
+COPY learnux_dump.sql ejercicios_adicionales.sql enriquecer_flags.sql ./
 RUN chmod +x start.sh
 
 EXPOSE 8080
