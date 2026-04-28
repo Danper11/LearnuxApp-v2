@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Redirigir la raíz "/" a vnc.html
+echo '<meta http-equiv="refresh" content="0; url=/vnc.html">' > /usr/share/novnc/index.html
+
 # Pantalla virtual (resolución igual al tamaño de la ventana de la app)
 Xvfb :1 -screen 0 1360x840x24 -ac -noreset &
 export DISPLAY=:1
