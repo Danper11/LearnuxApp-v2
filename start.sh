@@ -52,10 +52,10 @@ PORT=${PORT:-8080}
 websockify --web=/usr/share/novnc/ --wrap-mode=ignore "$PORT" localhost:5900 &
 sleep 0.5
 
-# Lanzar app y mostrar cualquier error en los logs
+# Lanzar app — se reinicia automáticamente si se cierra
 echo "=== Iniciando LearnUX ==="
-java -Djava.awt.headless=false -jar /app/app.jar 2>&1
-echo "=== Java termino con codigo: $? ==="
-
-# Mantener el contenedor vivo para que se puedan leer los logs
-tail -f /dev/null
+while true; do
+    java -Djava.awt.headless=false -jar /app/app.jar 2>&1
+    echo "=== Java termino con codigo: $? — reiniciando en 3s ==="
+    sleep 3
+done
