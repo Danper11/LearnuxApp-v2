@@ -28,6 +28,10 @@ if [ -n "$DATABASE_URL" ]; then
     else
         echo "=== Base de datos ya inicializada, omitiendo siembra ==="
     fi
+
+    # Migración idempotente: columna de contraseñas
+    psql "$DATABASE_URL" -c \
+        "ALTER TABLE learnux.usuario ADD COLUMN IF NOT EXISTS password_hash TEXT;" 2>&1
 fi
 
 # Pantalla virtual

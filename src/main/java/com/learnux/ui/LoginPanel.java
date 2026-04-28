@@ -32,9 +32,13 @@ public class LoginPanel extends JPanel {
 
     // ── Form refs ────────────────────────────────────────────────
     private final JTextField       txtNombre;
+    private final JPasswordField   txtPassword;
+    private final JPasswordField   txtConfirm;
+    private final JPanel           panelConfirm;
     private final JLabel           lblMensaje;
     private final JLabel           lblSubtitulo;
     private final JButton          btnAccion;
+    private final JPanel           card;
     private final MainFrame        ventanaPrincipal;
     private final UsuarioService   usuarioService = new UsuarioService();
     private final boolean[]        registroMode   = {false};
@@ -45,7 +49,7 @@ public class LoginPanel extends JPanel {
         setLayout(new GridBagLayout());
 
         // ── Tarjeta central ──────────────────────────────────────
-        JPanel card = new JPanel();
+        card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(CARD_BG);
         card.setOpaque(true);
@@ -86,7 +90,7 @@ public class LoginPanel extends JPanel {
         lblSubtitulo.setAlignmentX(Component.CENTER_ALIGNMENT);
         lblSubtitulo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
 
-        // ── Campo ────────────────────────────────────────────────
+        // ── Campo nombre ─────────────────────────────────────────
         JLabel lblCampo = new JLabel("Nombre de usuario");
         lblCampo.setFont(new Font("Monospaced", Font.PLAIN, 14));
         lblCampo.setForeground(SUB);
@@ -105,6 +109,37 @@ public class LoginPanel extends JPanel {
             new EmptyBorder(12, 16, 12, 16)));
         txtNombre.setMaximumSize(new Dimension(Integer.MAX_VALUE, 54));
         txtNombre.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // ── Campo contraseña ─────────────────────────────────────
+        JLabel lblPwd = new JLabel("Contraseña");
+        lblPwd.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        lblPwd.setForeground(SUB);
+        lblPwd.setHorizontalAlignment(SwingConstants.CENTER);
+        lblPwd.setAlignmentX(Component.CENTER_ALIGNMENT);
+        lblPwd.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+
+        txtPassword = new JPasswordField(20);
+        estilizarPasswordField(txtPassword);
+
+        // ── Campo confirmar (solo en registro) ───────────────────
+        JLabel lblConfirm = new JLabel("Confirmar contraseña");
+        lblConfirm.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        lblConfirm.setForeground(SUB);
+        lblConfirm.setHorizontalAlignment(SwingConstants.CENTER);
+        lblConfirm.setAlignmentX(Component.CENTER_ALIGNMENT);
+        lblConfirm.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+
+        txtConfirm = new JPasswordField(20);
+        estilizarPasswordField(txtConfirm);
+
+        panelConfirm = new JPanel();
+        panelConfirm.setLayout(new BoxLayout(panelConfirm, BoxLayout.Y_AXIS));
+        panelConfirm.setOpaque(false);
+        panelConfirm.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panelConfirm.add(Box.createVerticalStrut(14));
+        panelConfirm.add(lblConfirm);
+        panelConfirm.add(Box.createVerticalStrut(8));
+        panelConfirm.add(txtConfirm);
 
         // ── Botón de acción ──────────────────────────────────────
         btnAccion = new JButton("→  Entrar");
@@ -137,30 +172,39 @@ public class LoginPanel extends JPanel {
         card.add(lblCampo);
         card.add(Box.createVerticalStrut(8));
         card.add(txtNombre);
+        card.add(Box.createVerticalStrut(14));
+        card.add(lblPwd);
+        card.add(Box.createVerticalStrut(8));
+        card.add(txtPassword);
+        card.add(panelConfirm);
         card.add(Box.createVerticalStrut(20));
         card.add(btnAccion);
         card.add(Box.createVerticalStrut(14));
         card.add(lblMensaje);
 
-        card.setPreferredSize(new Dimension(560, card.getPreferredSize().height));
         add(card);
 
         // ── Toggle logic ─────────────────────────────────────────
         Runnable syncUI = () -> {
             lblMensaje.setText(" ");
             if (!registroMode[0]) {
-                btnTabEntrar.setBackground(ACCENT);    btnTabEntrar.setForeground(BG);
+                btnTabEntrar.setBackground(ACCENT);      btnTabEntrar.setForeground(BG);
                 btnTabRegistro.setBackground(TOGGLE_BG); btnTabRegistro.setForeground(SUB);
-                lblSubtitulo.setText("¡Hola de nuevo! Ingresa tu nombre para continuar");
+                lblSubtitulo.setText("¡Hola de nuevo! Ingresa tus datos para continuar");
                 btnAccion.setText("→  Entrar");
                 btnAccion.setBackground(ACCENT);
             } else {
-                btnTabEntrar.setBackground(TOGGLE_BG);  btnTabEntrar.setForeground(SUB);
-                btnTabRegistro.setBackground(GREEN);   btnTabRegistro.setForeground(BG);
+                btnTabEntrar.setBackground(TOGGLE_BG);   btnTabEntrar.setForeground(SUB);
+                btnTabRegistro.setBackground(GREEN);     btnTabRegistro.setForeground(BG);
                 lblSubtitulo.setText("Crea tu cuenta y empieza a aprender Linux");
                 btnAccion.setText("✨  Crear cuenta");
                 btnAccion.setBackground(GREEN);
             }
+            panelConfirm.setVisible(registroMode[0]);
+            card.setPreferredSize(null);
+            card.setPreferredSize(new Dimension(560, card.getPreferredSize().height));
+            card.revalidate();
+            repaint();
         };
         syncUI.run();
 
@@ -176,6 +220,8 @@ public class LoginPanel extends JPanel {
 
         btnAccion.addActionListener(e -> manejarAccion());
         txtNombre.addActionListener(e -> manejarAccion());
+        txtPassword.addActionListener(e -> manejarAccion());
+        txtConfirm.addActionListener(e -> manejarAccion());
     }
 
     // ── Helpers UI ───────────────────────────────────────────────
@@ -187,6 +233,19 @@ public class LoginPanel extends JPanel {
         b.setFocusPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
+    }
+
+    private void estilizarPasswordField(JPasswordField f) {
+        f.setFont(new Font("Monospaced", Font.PLAIN, 18));
+        f.setBackground(new Color(25, 28, 48));
+        f.setForeground(TEXT);
+        f.setCaretColor(ACCENT);
+        f.setEchoChar('●');
+        f.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER),
+            new EmptyBorder(12, 16, 12, 16)));
+        f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 54));
+        f.setAlignmentX(Component.CENTER_ALIGNMENT);
     }
 
     // ── Matrix ───────────────────────────────────────────────────
@@ -249,16 +308,25 @@ public class LoginPanel extends JPanel {
     // ── Lógica ───────────────────────────────────────────────────
 
     private void manejarAccion() {
-        String nombre = txtNombre.getText().trim();
+        String nombre   = txtNombre.getText().trim();
+        String password = new String(txtPassword.getPassword());
         btnAccion.setEnabled(false);
         try {
             LoginResultado res;
             String msg;
             if (!registroMode[0]) {
-                res = usuarioService.entrar(nombre);
-                msg = "✔ Bienvenido de vuelta, " + res.usuario.getNombreUsuario() + "!";
+                res = usuarioService.entrar(nombre, password);
+                msg = res.primerPassword
+                    ? "✔ Contraseña creada. ¡Bienvenido, " + res.usuario.getNombreUsuario() + "!"
+                    : "✔ Bienvenido de vuelta, " + res.usuario.getNombreUsuario() + "!";
             } else {
-                res = usuarioService.registrar(nombre);
+                String confirm = new String(txtConfirm.getPassword());
+                if (!password.equals(confirm)) {
+                    mostrarError("Las contraseñas no coinciden.");
+                    btnAccion.setEnabled(true);
+                    return;
+                }
+                res = usuarioService.registrar(nombre, password);
                 msg = "✔ ¡Cuenta creada! Bienvenido, " + res.usuario.getNombreUsuario() + "!";
             }
             mostrarExito(msg);

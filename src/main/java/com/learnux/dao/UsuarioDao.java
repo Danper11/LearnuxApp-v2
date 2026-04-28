@@ -37,6 +37,32 @@ public class UsuarioDao {
         return null;
     }
 
+    public String getPasswordHash(int idUsuario) {
+        String sql = "SELECT password_hash FROM learnux.usuario WHERE id_usuario = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, idUsuario);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getString("password_hash");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo password_hash: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public void setPasswordHash(int idUsuario, String hash) {
+        String sql = "UPDATE learnux.usuario SET password_hash = ? WHERE id_usuario = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, hash);
+            ps.setInt(2, idUsuario);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error actualizando password_hash: " + e.getMessage());
+        }
+    }
+
     /**
      * Registra un usuario nuevo usando el procedure sp_registrar_usuario.
      * El procedure aplica la transacción, valida longitud mínima y
