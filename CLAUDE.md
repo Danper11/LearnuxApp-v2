@@ -102,7 +102,26 @@ Other `UiUtil` helpers:
 
 **Warning:** `ExamenPanel` and `JefeFinalPanel` currently use locally defined color constants. When modifying these, prefer refactoring them to use `UiUtil` for consistency.
 
+## Authentication
+
+Passwords use **PBKDF2-HMAC-SHA256** (120k iterations, random 16-byte salt per user), stored as `"iterations:salt:hash"` in `learnux.usuario.password_hash`. No external libraries — pure Java 21 (`javax.crypto`).
+
+- `PasswordUtil` — hashing and constant-time verification
+- `UsuarioService.entrar(nombre, password)` — if `password_hash` is null (existing account), sets the password on first login
+- `UsuarioService.registrar(nombre, password)` — creates account and hashes password immediately
+- `LoginPanel` shows a confirm field only in register mode
+
+**Local DB migration** (run once if the column doesn't exist yet):
+```bash
+psql -U postgres learnux_db -c "ALTER TABLE learnux.usuario ADD COLUMN IF NOT EXISTS password_hash TEXT;"
+```
+On Render, `start.sh` applies this migration automatically on every startup (idempotent).
+
 ## Deployment
+
+- **Production URL**: https://learnux-app.onrender.com
+- **Render dashboard**: https://dashboard.render.com/web/srv-d7ob6cog4nts73abtfkg
+- **Blueprint**: `render.yaml` defines the web service (Docker) + managed PostgreSQL (`learnux-db`)
 
 The app runs in Docker as a headless Java Swing app exposed via browser through noVNC:
 
@@ -110,4 +129,4 @@ The app runs in Docker as a headless Java Swing app exposed via browser through 
 Xvfb (virtual display) → x11vnc → websockify → noVNC (port 8080)
 ```
 
-`start.sh` orchestrates the startup sequence. The `PORT` env var (default 8080) is read by websockify. `DATABASE_URL` env var overrides local DB config (used by Railway/Render).
+`start.sh` orchestrates startup: waits for DB, seeds schema on first run (strips Railway `\restrict` header, fixes `OWNER TO postgres` → `current_user`), applies migrations, then launches the VNC stack. The `PORT` env var (default 8080) is read by websockify. `DATABASE_URL` overrides local DB config.
