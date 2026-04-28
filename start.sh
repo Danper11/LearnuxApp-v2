@@ -1,25 +1,30 @@
 #!/bin/bash
-set -e
 
 # Redirigir la raíz "/" a vnc.html
 echo '<meta http-equiv="refresh" content="0; url=/vnc.html">' > /usr/share/novnc/index.html
 
-# Pantalla virtual (resolución igual al tamaño de la ventana de la app)
+# Pantalla virtual
 Xvfb :1 -screen 0 1360x840x24 -ac -noreset &
 export DISPLAY=:1
-sleep 1
+sleep 2
 
-# Gestor de ventanas mínimo (evita quirks de Swing sin WM)
+# Gestor de ventanas
 fluxbox &
 sleep 0.5
 
-# Servidor VNC local (sin contraseña, solo escucha en localhost)
+# Servidor VNC
 x11vnc -display :1 -nopw -listen localhost -rfbport 5900 -forever -quiet &
 sleep 0.5
 
-# noVNC: expone el escritorio virtual en el puerto que Railway asigna
+# noVNC
 PORT=${PORT:-8080}
 websockify --web=/usr/share/novnc/ --wrap-mode=ignore "$PORT" localhost:5900 &
+sleep 0.5
 
-# Lanzar la aplicación (exec = este proceso ES el proceso principal del contenedor)
-exec java -jar /app/app.jar
+# Lanzar app y mostrar cualquier error en los logs
+echo "=== Iniciando LearnUX ==="
+java -jar /app/app.jar 2>&1
+echo "=== Java termino con codigo: $? ==="
+
+# Mantener el contenedor vivo para que se puedan leer los logs
+tail -f /dev/null
