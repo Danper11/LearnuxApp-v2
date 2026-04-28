@@ -38,7 +38,7 @@ public class UsuarioDao {
     }
 
     public String getPasswordHash(int idUsuario) {
-        String sql = "SELECT password_hash FROM learnux.usuario WHERE id_usuario = ?";
+        String sql = "SELECT password_hash FROM learnux.usuarios WHERE id_usuario = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, idUsuario);
@@ -52,7 +52,7 @@ public class UsuarioDao {
     }
 
     public void setPasswordHash(int idUsuario, String hash) {
-        String sql = "UPDATE learnux.usuario SET password_hash = ? WHERE id_usuario = ?";
+        String sql = "UPDATE learnux.usuarios SET password_hash = ? WHERE id_usuario = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, hash);
