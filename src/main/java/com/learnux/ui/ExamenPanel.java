@@ -552,7 +552,7 @@ public class ExamenPanel extends JPanel {
 
         // Animación barra
         int[] f = {0};
-        javax.swing.Timer anim = new javax.swing.Timer(12, null);
+        javax.swing.Timer anim = new javax.swing.Timer(50, null);
         anim.addActionListener(e -> {
             f[0] = Math.min(f[0] + 2, pct);
             barra.setValue(f[0]);

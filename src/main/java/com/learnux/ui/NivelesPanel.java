@@ -131,7 +131,7 @@ record TierDef(String icon, String label, int from, int to, Color color) {}
         // Animate progress bars from 0 → target in ~320 ms
         if (!animBars.isEmpty()) {
             int[] tick = {0};
-            javax.swing.Timer barAnim = new javax.swing.Timer(16, null);
+            javax.swing.Timer barAnim = new javax.swing.Timer(50, null);
             barAnim.addActionListener(e -> {
                 tick[0]++;
                 boolean allDone = true;

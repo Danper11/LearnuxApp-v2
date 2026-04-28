@@ -81,7 +81,7 @@ public class ProgresoPanel extends JPanel {
         final int  puntosF = puntosTotal;
         final int  pctF    = pct;
         int[] tick = {0};
-        new javax.swing.Timer(20, null) {{
+        new javax.swing.Timer(50, null) {{
             addActionListener(e -> {
                 tick[0]++;
                 float t = Math.min(1f, tick[0] / 30f);

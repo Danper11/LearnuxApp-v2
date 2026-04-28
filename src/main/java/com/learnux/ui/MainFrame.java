@@ -88,7 +88,7 @@ public class MainFrame extends JFrame {
         JLayeredPane layered = getLayeredPane();
         layered.add(overlay, JLayeredPane.POPUP_LAYER);
 
-        javax.swing.Timer fade = new javax.swing.Timer(16, null);
+        javax.swing.Timer fade = new javax.swing.Timer(50, null);
         fade.addActionListener(e -> {
             alpha[0] -= 0.05f;
             if (alpha[0] <= 0f) {

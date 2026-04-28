@@ -24,7 +24,7 @@ public class LoginPanel extends JPanel {
     // ── Matrix ────────────────────────────────────────────────────
     private static final String CHARS =
         "01アイウエカキクコサシスタチツテトナニヌネノハヒフヘホ∑∆Ω≡λ╔╗╚╝║═<>/[]{}#$%";
-    private static final int CELL = 15;
+    private static final int CELL = 22;
     private int    cols, rows;
     private int[]  heads, tailLen;
     private char[][] grid;
@@ -172,7 +172,7 @@ public class LoginPanel extends JPanel {
         });
 
         // ── Animación matrix ─────────────────────────────────────
-        new Timer(50, e -> { tick(); repaint(); }).start();
+        new Timer(100, e -> { tick(); repaint(); }).start();
 
         btnAccion.addActionListener(e -> manejarAccion());
         txtNombre.addActionListener(e -> manejarAccion());
