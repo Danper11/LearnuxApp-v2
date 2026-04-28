@@ -119,9 +119,9 @@ On Render, `start.sh` applies this migration automatically on every startup (ide
 
 ## Deployment
 
-- **Production URL**: https://learnux-app.onrender.com
-- **Render dashboard**: https://dashboard.render.com/web/srv-d7ob6cog4nts73abtfkg
-- **Blueprint**: `render.yaml` defines the web service (Docker) + managed PostgreSQL (`learnux-db`)
+- **Production URL**: https://learnuxapp-v2-production.up.railway.app
+- **Platform**: Railway — project `accurate-acceptance`, service `LearnuxApp-v2`
+- Railway auto-detects the `Dockerfile`; no config file needed
 
 The app runs in Docker as a headless Java Swing app exposed via browser through noVNC:
 
@@ -129,4 +129,4 @@ The app runs in Docker as a headless Java Swing app exposed via browser through 
 Xvfb (virtual display) → x11vnc → websockify → noVNC (port 8080)
 ```
 
-`start.sh` orchestrates startup: waits for DB, seeds schema on first run (strips Railway `\restrict` header, fixes `OWNER TO postgres` → `current_user`), applies migrations, then launches the VNC stack. The `PORT` env var (default 8080) is read by websockify. `DATABASE_URL` overrides local DB config.
+`start.sh` orchestrates startup: waits for DB, seeds schema on first run (strips Railway `\restrict` header, fixes `OWNER TO postgres` → `current_user`), applies migrations, then launches the VNC stack. The `PORT` env var (default 8080) is read by websockify. `DATABASE_URL` (injected by Railway) overrides local DB config.

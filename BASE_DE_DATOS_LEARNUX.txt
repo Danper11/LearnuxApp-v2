@@ -1,0 +1,1550 @@
+================================================================================
+  DOCUMENTACIÓN COMPLETA — BASE DE DATOS LearnUX
+  Esquema: learnux  |  Base: learnux_db  |  Motor: PostgreSQL
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 1 — TIPOS PERSONALIZADOS (ENUMs)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+learnux.dificultad_tipo
+  Valores posibles: principiante | intermedio | avanzado
+  Usado en: comandos.dificultad_nivel  y  niveles.dificultad
+
+learnux.ejercicio_tipo
+  Valores posibles: DRAG_DROP | MULTIPLE_CHOICE | FILL_BLANK | TYPE_COMMAND | TERMINAL_SIM
+  Usado en: ejercicios.tipo  y  niveles.tipo_ejercicio
+
+  ¿Qué significa cada tipo de ejercicio?
+  ┌──────────────────┬──────────────────────────────────────────────────────────────┐
+  │ DRAG_DROP        │ El usuario arrastra la respuesta al lugar correcto.          │
+  │                  │ Según el formato de respuesta_correcta y opciones_json,      │
+  │                  │ puede ser: simple, emparejamiento (MultiMap), selección      │
+  │                  │ múltiple, u ordenamiento de palabras.                        │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ MULTIPLE_CHOICE  │ 4 opciones, el usuario elige la correcta.                   │
+  │                  │ opciones_json contiene la lista con las 4 alternativas.      │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ FILL_BLANK       │ Se muestra un comando incompleto y el usuario completa       │
+  │                  │ el espacio en blanco.                                        │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ TYPE_COMMAND     │ El usuario escribe el comando completo a mano.               │
+  ├──────────────────┼──────────────────────────────────────────────────────────────┤
+  │ TERMINAL_SIM     │ Se simula una terminal. Solo en niveles boss (6,12) y        │
+  │                  │ tiers 3-4 (niveles 13-24).                                  │
+  └──────────────────┴──────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 2 — TABLAS (estructura completa + datos reales)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.categorias
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Agrupa los comandos por área temática.
+
+COLUMNAS:
+  id_categoria  INTEGER    PRIMARY KEY  AUTO-INCREMENT
+                           → identifica de forma única a cada categoría
+  nombre        TEXT       NOT NULL  UNIQUE
+                           → nombre de la categoría (no se puede repetir)
+  descripcion   TEXT       NULL
+                           → descripción breve de la categoría
+
+RESTRICCIONES:
+  PK:     categorias_pkey   → id_categoria
+  UNIQUE: uq_categoria_nombre → nombre
+  FK inversa: comandos.id_categoria → aquí (ON DELETE CASCADE)
+              si se borra una categoría, se borran todos sus comandos
+
+DATOS ACTUALES (5 filas):
+  id | nombre                   | descripcion
+  ---+--------------------------+--------------------
+   1 | fundamentos              | Navegación básica
+   2 | gestion de sistema       | Procesos y recursos
+   3 | permisos y seguridad     | Gestión de acceso
+   4 | busqueda y filtrado      | Grep y find
+   5 | compresion y empaquetado | Tar y otros
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.comandos
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Enciclopedia de comandos Linux. Cada fila es un comando
+           con su descripción completa y sintaxis.
+
+COLUMNAS:
+  id_comando        INTEGER              PRIMARY KEY  AUTO-INCREMENT
+  id_categoria      INTEGER              NOT NULL  FK → categorias.id_categoria
+                                         → a qué categoría pertenece
+  comando_nombre    TEXT                 NOT NULL  UNIQUE
+                                         → nombre del comando (ej: "ls", "grep")
+                                         → siempre en minúsculas (forzado por trigger)
+  descripcion       TEXT                 NOT NULL
+                                         → descripción HTML enriquecida que se
+                                           muestra en la pantalla Explorar
+  sintaxis          TEXT                 NOT NULL
+                                         → forma corta (ej: "ls [OPCION]")
+  dificultad_nivel  dificultad_tipo      NULL  DEFAULT 'principiante'
+                                         → principiante / intermedio / avanzado
+  salida_simulada   TEXT                 NULL
+                                         → ejemplo de salida de terminal para TERMINAL_SIM
+
+RESTRICCIONES:
+  PK:     comandos_pkey      → id_comando
+  UNIQUE: uq_comando_nombre  → comando_nombre
+  CHECK:  chk_cmd_minusculas → comando_nombre = lower(comando_nombre)
+  FK:     fk_cmd_categoria   → categorias.id_categoria  (ON DELETE CASCADE)
+  FK inv: ejercicios.id_comando   → aquí (ON DELETE SET NULL)
+          opciones_comando.id_comando → aquí (ON DELETE CASCADE)
+          progreso_usuarios.id_comando → aquí (ON DELETE CASCADE)
+TRIGGERS:
+  BEFORE INSERT OR UPDATE → tr_normalizar_comando
+    Convierte comando_nombre a LOWER(TRIM(...)) automáticamente.
+  AFTER  INSERT OR UPDATE OR DELETE → tr_audit_comandos
+    Registra cada cambio en comandos_audit_log.
+
+DATOS ACTUALES (21 comandos):
+  id | cat | comando     | sintaxis            | dificultad
+  ---+-----+-------------+---------------------+------------
+   1 |  1  | ls          | ls [OPCION]         | principiante
+   2 |  1  | cp          | cp ORIGEN DESTINO   | principiante
+   3 |  1  | mkdir       | mkdir DIR           | principiante
+   4 |  1  | rm          | rm ARCHIVO          | intermedio
+   5 |  1  | mv          | mv ORIGEN DESTINO   | principiante
+   6 |  1  | cat         | cat ARCHIVO         | principiante
+   7 |  1  | touch       | touch ARCHIVO       | principiante
+   8 |  1  | pwd         | pwd                 | principiante
+  19 |  1  | ln          | ln ORIGEN DEST      | intermedio
+  21 |  1  | cd          | cd DIR              | principiante
+   9 |  2  | top         | top                 | intermedio
+  10 |  2  | df          | df                  | intermedio
+  11 |  2  | free        | free                | intermedio
+  20 |  2  | ps          | ps                  | intermedio
+  12 |  3  | chmod       | chmod MODO          | intermedio
+  13 |  3  | sudo        | sudo CMD            | intermedio
+  14 |  4  | grep        | grep PATRON         | intermedio
+  15 |  4  | find        | find RUTA           | intermedio
+  17 |  4  | awk         | awk PROG            | avanzado
+  18 |  4  | sed         | sed SCRIPT          | avanzado
+  16 |  5  | tar         | tar CMD             | intermedio
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.opciones_comando
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Banderas/flags de cada comando. 71 registros en total.
+           Aparecen en el panel "Flags" de la pantalla Explorar.
+
+COLUMNAS:
+  id_opcion    INTEGER  PRIMARY KEY  AUTO-INCREMENT
+  id_comando   INTEGER  NOT NULL  FK → comandos.id_comando  (ON DELETE CASCADE)
+               → a qué comando pertenece esta bandera
+  bandera      TEXT     NOT NULL
+               → texto de la bandera (ej: "-l", "-r", "--help")
+  descripcion  TEXT     NOT NULL
+               → qué hace esta bandera, explicado en español
+  ejemplo_uso  TEXT     NULL
+               → ejemplo completo de uso en terminal
+
+RESTRICCIONES:
+  PK: opciones_comando_pkey → id_opcion
+  FK: fk_opcion_comando     → comandos.id_comando  (ON DELETE CASCADE)
+      si se borra el comando, se borran todas sus flags
+
+DATOS (71 banderas — las más importantes):
+  comando | bandera  | descripción
+  --------+----------+--------------------------------------------------
+  ls      | -l       | Formato largo: permisos, dueño, tamaño, fecha
+  ls      | -a       | Muestra archivos ocultos (los que empiezan con .)
+  ls      | -h       | Tamaños legibles (KB, MB, GB)
+  ls      | -t       | Ordena por fecha de modificación
+  ls      | -S       | Ordena por tamaño (mayor primero)
+  ls      | -r       | Invierte el orden de la lista
+  ls      | -R       | Recursivo: muestra subdirectorios
+  ls      | -1       | Un archivo por línea (ideal para scripts)
+  cd      | ..       | Sube un nivel (directorio padre)
+  cd      | ~        | Va al directorio HOME del usuario
+  cd      | -        | Regresa al directorio anterior
+  cp      | -r       | Recursivo: copia carpetas completas
+  cp      | -i       | Interactive: pregunta antes de sobrescribir
+  cp      | -u       | Update: solo copia si el origen es más nuevo
+  cp      | -p       | Preserve: mantiene permisos y fechas
+  cp      | -v       | Verbose: muestra lo que está copiando
+  mv      | -i       | Interactive: pregunta antes de sobrescribir
+  mv      | -n       | No-clobber: nunca sobreescribe el destino
+  mv      | -v       | Verbose: muestra cada archivo movido
+  rm      | -r       | Recursivo: borra carpetas y su contenido
+  rm      | -f       | Force: borra sin preguntar ni mostrar errores
+  rm      | -i       | Interactive: pide confirmación antes de cada borrado
+  rm      | -v       | Verbose: confirma qué fue eliminado
+  grep    | -i       | Ignore-case: ignora mayúsculas/minúsculas
+  grep    | -r       | Recursivo: busca en todos los archivos de una carpeta
+  grep    | -n       | Muestra el número de línea de cada coincidencia
+  grep    | -c       | Count: muestra cuántas líneas coinciden
+  grep    | -v       | Invert: muestra las líneas que NO coinciden
+  grep    | -l       | Solo muestra nombres de archivos con coincidencias
+  find    | -name    | Busca por nombre exacto
+  find    | -type    | Busca por tipo (f=archivo, d=directorio)
+  find    | -size    | Busca por tamaño (+100M = más de 100MB)
+  find    | -mtime   | Busca por días desde la última modificación
+  find    | -exec    | Ejecuta un comando sobre cada resultado
+  chmod   | +x       | Añade permiso de ejecución
+  chmod   | -R       | Recursivo: aplica a carpetas y subcarpetas
+  chmod   | u+s      | SetUID: ejecutar con privilegios del dueño
+  tar     | -c       | Create: crear un nuevo archivo
+  tar     | -x       | eXtract: extraer contenido
+  tar     | -z       | gzip: comprimir con gzip (.tar.gz)
+  tar     | -j       | bzip2: comprimir con bzip2 (.tar.bz2)
+  tar     | -t       | List: listar contenido sin extraer
+  tar     | -f       | File: indica el nombre del archivo
+  cat     | -n       | Numera todas las líneas
+  cat     | -b       | Numera solo las líneas con contenido (omite vacías)
+  cat     | -e       | Muestra $ al final de cada línea
+  cat     | -s       | Comprime múltiples líneas vacías en una
+  touch   | -a       | Cambia solo la fecha de acceso
+  touch   | -m       | Cambia solo la fecha de modificación
+  touch   | -c       | No crea el archivo si no existe
+  touch   | -t       | Permite poner una fecha y hora exacta
+  touch   | -r       | Copia la fecha de otro archivo
+  ps      | aux      | Todos los procesos de todos los usuarios con detalle
+  ps      | -ef      | Formato estándar del sistema
+  ps      | --forest | Árbol de procesos (quién creó a quién)
+  top     | -d       | Cambia velocidad de actualización (en segundos)
+  top     | -p       | Monitorea solo procesos con ese PID
+  top     | -u       | Muestra solo procesos de un usuario
+  df      | -h       | Espacio en disco en GB/MB (legible)
+  df      | -T       | Muestra tipo de sistema de archivos
+  df      | -i       | Muestra uso de inodos
+  free    | -h       | RAM en GB/MB (legible)
+  free    | -m       | Fuerza mostrar en megabytes
+  free    | -s       | Actualiza cada N segundos
+  sudo    | -i       | Abre terminal como root
+  sudo    | -l       | Lista permisos que tienes con sudo
+  sudo    | -u       | Ejecuta como otro usuario específico
+  pwd     | -L       | Ruta lógica (incluye enlaces simbólicos)
+  pwd     | -P       | Ruta física real (evita enlaces)
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.niveles
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Los 24 niveles del juego, organizados en 4 tiers.
+
+COLUMNAS:
+  id_nivel           INTEGER          PRIMARY KEY  AUTO-INCREMENT
+  numero             INTEGER          NOT NULL  UNIQUE
+                                      → número del nivel (1-24)
+  nombre             TEXT             NOT NULL
+                                      → título que se muestra en la UI
+  descripcion        TEXT             NULL
+                                      → HTML con la explicación del comando
+                                        que se enseña en ese nivel
+  tipo_ejercicio     ejercicio_tipo   NOT NULL
+                                      → tipo predominante de ejercicio
+  dificultad         dificultad_tipo  NOT NULL
+                                      → principiante / intermedio / avanzado
+  puntos_para_pasar  INTEGER          DEFAULT 70
+                                      → puntos mínimos para completar el nivel
+  puntos_recompensa  INTEGER          DEFAULT 10
+                                      → puntos que se suman al completar
+  desbloqueado_por   INTEGER          NULL  FK → niveles.id_nivel
+                                      → id del nivel que hay que completar
+                                        para desbloquear este. NULL = nivel
+                                        accesible desde el inicio (nivel 1)
+
+RESTRICCIONES:
+  PK:    niveles_pkey          → id_nivel
+  UNIQUE: uq_nivel_numero      → numero
+  CHECK: chk_numero_nivel      → numero BETWEEN 1 AND 24
+  CHECK: chk_puntos_para_pasar → puntos_para_pasar BETWEEN 1 AND 100
+  CHECK: chk_recompensa_pos    → puntos_recompensa > 0
+  FK:    desbloqueado_por      → niveles.id_nivel (auto-referencia)
+  FK inv: ejercicios, progreso_nivel, intentos_ejercicio → aquí (CASCADE)
+
+DATOS COMPLETOS (24 filas):
+  id | num | nombre                          | tipo            | dificultad   | ptos_pasar | recompensa | desblq_por
+  ---+-----+---------------------------------+-----------------+--------------+------------+------------+-----------
+   1 |  1  | Tu primer comando: ls           | DRAG_DROP       | principiante |     50     |     15     |   NULL
+   2 |  2  | Navegar: pwd y cd               | DRAG_DROP       | principiante |     50     |     15     |     1
+   3 |  3  | Crear carpetas: mkdir           | DRAG_DROP       | principiante |     50     |     15     |     2
+   4 |  4  | Copiar y mover: cp y mv         | DRAG_DROP       | principiante |     60     |     15     |     3
+   5 |  5  | Leer y borrar: cat y rm         | DRAG_DROP       | principiante |     60     |     15     |     4
+   6 |  6  | Jefe Final: Fundamentos         | TERMINAL_SIM    | principiante |     70     |     30     |     5
+   7 |  7  | Flags de ls en detalle          | MULTIPLE_CHOICE | principiante |     60     |     15     |     6
+   8 |  8  | cp y mv con flags               | MULTIPLE_CHOICE | principiante |     60     |     15     |     7
+   9 |  9  | rm y sus peligros               | MULTIPLE_CHOICE | principiante |     60     |     15     |     8
+  10 | 10  | touch y cat en profundidad      | MULTIPLE_CHOICE | intermedio   |     60     |     15     |     9
+  11 | 11  | Introducción a grep             | MULTIPLE_CHOICE | intermedio   |     60     |     15     |    10
+  12 | 12  | Jefe Final: Intermedio          | TERMINAL_SIM    | intermedio   |     70     |     35     |    11
+  13 | 13  | Completa: Básicos               | FILL_BLANK      | intermedio   |     65     |     20     |    12
+  14 | 14  | Completa: Avanzados             | FILL_BLANK      | intermedio   |     65     |     20     |    13
+  15 | 15  | Escribe: find y grep            | TYPE_COMMAND    | intermedio   |     65     |     20     |    14
+  16 | 16  | Terminal IV: permisos con chmod | TYPE_COMMAND    | intermedio   |     65     |     20     |    15
+  17 | 17  | Terminal: Gestión               | TERMINAL_SIM    | avanzado     |     70     |     25     |    16
+  18 | 18  | Jefe Final: Avanzado            | TERMINAL_SIM    | avanzado     |     75     |     40     |    17
+  19 | 19  | Terminal: Red y Discos          | TERMINAL_SIM    | avanzado     |     70     |     25     |    18
+  20 | 20  | Terminal: Búsqueda Pro          | TERMINAL_SIM    | avanzado     |     70     |     25     |    19
+  21 | 21  | Compresión con tar              | TYPE_COMMAND    | intermedio   |     65     |     20     |    20
+  22 | 22  | Procesos con ps y top           | TERMINAL_SIM    | intermedio   |     70     |     25     |    21
+  23 | 23  | Filtros AWK y SED               | TYPE_COMMAND    | avanzado     |     75     |     30     |    22
+  24 | 24  | Jefe Final: Maestro             | TERMINAL_SIM    | avanzado     |     80     |     50     |    23
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.ejercicios
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Los 60 ejercicios del juego. Cada nivel tiene entre 2 y 4 ejercicios.
+
+COLUMNAS:
+  id_ejercicio       INTEGER         PRIMARY KEY  AUTO-INCREMENT
+  id_nivel           INTEGER         NOT NULL  FK → niveles.id_nivel (ON DELETE CASCADE)
+                                     → a qué nivel pertenece este ejercicio
+  id_comando         INTEGER         NULL  FK → comandos.id_comando (ON DELETE SET NULL)
+                                     → comando principal del ejercicio.
+                                       Si el comando se borra, queda NULL pero el
+                                       ejercicio NO se elimina.
+  tipo               ejercicio_tipo  NOT NULL
+                                     → DRAG_DROP / MULTIPLE_CHOICE / FILL_BLANK /
+                                       TYPE_COMMAND / TERMINAL_SIM
+  pregunta           TEXT            NOT NULL
+                                     → enunciado que ve el usuario
+  respuesta_correcta TEXT            NOT NULL
+                                     → respuesta exacta. La comparación es
+                                       case-insensitive (LOWER en sp_registrar_intento)
+  opciones_json      JSONB           NULL
+                                     → formato varía según tipo (ver abajo)
+  pista              TEXT            NULL
+                                     → pista opcional que el usuario puede revelar
+  orden              INTEGER         DEFAULT 1
+                                     → orden dentro del nivel (1, 2, 3, 4...)
+  activo             BOOLEAN         DEFAULT true
+                                     → false = ejercicio desactivado, no se muestra
+  salida_simulada    TEXT            NULL
+                                     → output de terminal para TERMINAL_SIM
+                                       (si NULL, se usa salida_simulada del comando)
+
+RESTRICCIONES:
+  PK:    ejercicios_pkey  → id_ejercicio
+  CHECK: chk_orden_positivo → orden > 0
+  FK:    fk_ej_nivel      → niveles.id_nivel  (ON DELETE CASCADE)
+  FK:    fk_ej_comando    → comandos.id_comando (ON DELETE SET NULL)
+
+FORMATO DE opciones_json SEGÚN TIPO:
+  DRAG_DROP simple   → ["opcion1","opcion2","opcion3"]   (lista de opciones a arrastrar)
+  DRAG_DROP multi    → {"-l":"descripcion","-a":"desc"}  (emparejamiento clave-valor)
+  MULTIPLE_CHOICE    → ["correcta","opcion2","opcion3","opcion4"]
+  FILL_BLANK         → null  (no necesita opciones)
+  TYPE_COMMAND       → null  (el usuario escribe libremente)
+  TERMINAL_SIM       → null
+
+DATOS COMPLETOS (60 ejercicios activos):
+
+  --- NIVEL 1: ls (id_nivel=1) ---
+  id=1  | DRAG_DROP | ¿Comando para listar?
+        | respuesta: ls | pista: ls
+  id=2  | DRAG_DROP | Las "flags" o banderas modifican el comportamiento del comando ls.
+        |             Empareja cada una con su superpoder:
+        | respuesta: {"-l":"Muestra detalles (permisos, tamaño, fecha)",
+        |             "-a":"Muestra TODO (incluye archivos ocultos . )",
+        |             "-h":"Hace los tamaños legibles (KB, MB, GB)"}
+        | pista: Usa -l para "long format" y -a para "all".
+  id=200| DRAG_DROP | El comando ls muestra archivos por orden alfabético, pero a veces
+        |             necesitas ver qué has modificado recientemente. ¿Qué bandera añade
+        |             el orden por fecha de modificación?
+        | respuesta: -t | pista: Viene de "time". Las mayúsculas importan en Linux.
+  id=201| MULTIPLE_CHOICE | ¿Cuál de los siguientes comandos muestra los archivos de /etc
+        |                   ordenados por tamaño (mayor a menor)?
+        | respuesta: ls -lS /etc | pista: S de "Size": ordena por tamaño de archivo.
+
+  --- NIVEL 2: pwd y cd (id_nivel=2) ---
+  id=202| DRAG_DROP | ¿Qué símbolo representa el directorio HOME del usuario en Linux?
+        | respuesta: ~ | pista: Es el símbolo tilde, siempre apunta a /home/tuusuario.
+  id=203| DRAG_DROP | Para subir al directorio padre desde donde estás, ¿qué escribes
+        |             después de cd?
+        | respuesta: .. | pista: .. siempre apunta al directorio que contiene al actual.
+  id=19 | DRAG_DROP | ¿Qué comando muestra la ruta absoluta del directorio actual?
+        | respuesta: pwd | pista: Print Working Directory: imprime el directorio actual.
+  id=20 | DRAG_DROP | Para saltar al directorio en el que estabas ANTES del último cd,
+        |             ¿qué escribes después de cd?
+        | respuesta: - | pista: Es un guion: cd - te lleva de vuelta al directorio anterior.
+
+  --- NIVEL 3: mkdir (id_nivel=3) ---
+  id=204| MULTIPLE_CHOICE | ¿Qué hace mkdir -v al crear un directorio?
+        | respuesta: Muestra un mensaje por cada directorio creado
+        | pista: v de verbose: muestra lo que está haciendo.
+  id=205| DRAG_DROP | ¿Qué comando usas para confirmar que un directorio fue creado?
+        | respuesta: ls | pista: ls lista el contenido del directorio actual.
+  id=3  | DRAG_DROP | ¿Qué flag de mkdir crea automáticamente los directorios padre?
+        | respuesta: -p | pista: p de "parents": mkdir -p a/b/c crea los 3 niveles.
+  id=4  | DRAG_DROP | ¿Qué flag de mkdir asigna permisos al directorio al crearlo?
+        | respuesta: -m | pista: m de "mode": mkdir -m 755 carpeta.
+
+  --- NIVEL 4: cp y mv (id_nivel=4) ---
+  id=206| MULTIPLE_CHOICE | ¿Qué hace la bandera -n en el comando mv?
+        | respuesta: No sobreescribe el archivo destino si ya existe
+        | pista: -n de "no-clobber": protege archivos existentes.
+  id=207| DRAG_DROP | ¿Qué flag de cp muestra en pantalla cada archivo que está copiando?
+        | respuesta: -v | pista: v de "verbose": confirma cada operación de copia.
+  id=5  | DRAG_DROP | ¿Qué comando se usa para RENOMBRAR un archivo en Linux?
+        | respuesta: mv | pista: mv origen destino en el mismo directorio = renombrar.
+  id=6  | DRAG_DROP | ¿Qué flag de cp hace que la copia sea recursiva para directorios?
+        | respuesta: -r | pista: r de "recursive": recorre todos los subdirectorios.
+
+  --- NIVEL 5: cat y rm (id_nivel=5) ---
+  id=208| DRAG_DROP | ¿Qué comando crea un archivo vacío si no existe?
+        | respuesta: touch | pista: touch actualiza timestamps o crea el archivo.
+  id=209| DRAG_DROP | ¿Qué comando muestra el contenido de un archivo en la terminal?
+        | respuesta: cat | pista: cat de "concatenate": lee uno o une varios archivos.
+  id=7  | DRAG_DROP | ¿Qué flag de rm pide confirmación antes de borrar cada archivo?
+        | respuesta: -i | pista: i de "interactive": te pregunta antes de cada borrado.
+  id=8  | DRAG_DROP | ¿Qué combinación de flags borra un directorio sin confirmación?
+        | respuesta: -rf | pista: r de recursive + f de force. ¡No hay papelera!
+
+  --- NIVEL 6: Jefe Final Tier 1 (id_nivel=6) ---
+  id=210| MULTIPLE_CHOICE | ¿Qué combinación muestra todos los archivos ocultos
+        |                   ordenados del más nuevo al más antiguo?
+        | respuesta: ls -alt | pista: -a todos, -l detalles, -t ordenado por tiempo.
+  id=211| TYPE_COMMAND | Escribe el comando para listar solo los directorios en /var
+        |               (usa ls con grep).
+        | respuesta: ls -l /var | grep ^d
+        | pista: Combina ls -l con grep ^d (las líneas de directorio empiezan con d).
+
+  --- NIVEL 7: ls avanzado (id_nivel=7) ---
+  id=212| MULTIPLE_CHOICE | ¿Cuál de estos comandos muestra los archivos de /etc
+        |                   ordenados por tamaño, de mayor a menor?
+        | respuesta: ls -lS /etc | pista: S de "Size". Combínalo con -l para detalles.
+  id=213| DRAG_DROP | ¿Qué flag de ls lista el contenido de todos los subdirectorios
+        |             de forma recursiva?
+        | respuesta: -R | pista: R mayúscula de "Recursive".
+  id=9  | DRAG_DROP | ¿Qué flag de ls muestra TODOS los archivos, incluidos los ocultos?
+        | respuesta: -a | pista: a de "all": sin esto ls oculta archivos con punto.
+  id=10 | DRAG_DROP | ¿Qué flag de ls ordena por fecha de modificación, más reciente primero?
+        | respuesta: -t | pista: t de "time": útil para ver qué archivos cambiaron.
+
+  --- NIVEL 8: cp y mv con flags (id_nivel=8) ---
+  id=214| MULTIPLE_CHOICE | ¿Qué hace cp -u al copiar archivos?
+        | respuesta: Solo copia si el origen es más nuevo que el destino o no existe
+        | pista: u de "update": evita sobreescribir archivos ya actualizados.
+  id=215| FILL_BLANK | Completa: cp ___ proyecto/ /backup/ (copiar directorio completo)
+        | respuesta: -r | pista: r de "recursive": sin este flag cp no copia directorios.
+  id=11 | DRAG_DROP | ¿Qué flag de cp preserva los permisos, dueño y timestamps?
+        | respuesta: -p | pista: p de "preserve": mantiene los metadatos intactos.
+  id=12 | DRAG_DROP | Arrastra el flag de mv que muestra cada archivo que se está moviendo.
+        | respuesta: -v | pista: v de "verbose": confirma cada operación.
+
+  --- NIVEL 9: rm (id_nivel=9) ---
+  id=216| MULTIPLE_CHOICE | ¿Cuál de estas afirmaciones sobre rm es correcta?
+        | respuesta: rm elimina archivos de forma permanente, no existe papelera
+        | pista: A diferencia del explorador gráfico, rm no usa papelera.
+  id=217| DRAG_DROP | Para borrar solo los archivos con extensión .log, ¿qué comodín usas?
+        | respuesta: *.log | pista: * representa cualquier cadena de caracteres.
+  id=13 | DRAG_DROP | ¿Qué flag de rm borra forzosamente sin mostrar errores?
+        | respuesta: -f | pista: f de "force": ignora archivos inexistentes.
+  id=14 | DRAG_DROP | ¿Qué comando (diferente a rm) borra un directorio vacío de forma segura?
+        | respuesta: rmdir | pista: rmdir solo funciona si el directorio está vacío.
+
+  --- NIVEL 10: touch y cat (id_nivel=10) ---
+  id=218| MULTIPLE_CHOICE | ¿Qué hace cat -A al mostrar un archivo?
+        | respuesta: Muestra caracteres especiales: fin de línea como $ y tabulaciones como ^I
+        | pista: -A de "show-all": útil para detectar caracteres invisibles en scripts.
+  id=219| DRAG_DROP | ¿Qué flag de cat numera solo las líneas con contenido?
+        | respuesta: -b | pista: b de "number nonblank": no cuenta las líneas vacías.
+  id=15 | DRAG_DROP | ¿Qué flag de cat numera TODAS las líneas, incluidas las vacías?
+        | respuesta: -n | pista: n de "number": -b también numera pero salta las vacías.
+  id=16 | DRAG_DROP | ¿Qué flag de touch actualiza SOLO la fecha de modificación?
+        | respuesta: -m | pista: m de "modification": su opuesto es -a (fecha de acceso).
+
+  --- NIVEL 11: grep (id_nivel=11) ---
+  id=220| FILL_BLANK | Completa: grep ___ "ERROR" /var/log/ (buscar recursivamente)
+        | respuesta: -r | pista: r de "recursive": sin esto grep solo busca en un archivo.
+  id=221| FILL_BLANK | Completa: grep ___ "timeout" server.log (mostrar cuántas líneas)
+        | respuesta: -c | pista: c de "count": devuelve solo el número.
+  id=17 | DRAG_DROP | ¿Qué flag de grep hace que la búsqueda ignore mayúsculas?
+        | respuesta: -i | pista: i de "ignore-case": Error/error/ERROR son lo mismo.
+  id=18 | DRAG_DROP | ¿Qué flag de grep muestra el número de línea de cada coincidencia?
+        | respuesta: -n | pista: n de "line number": te dice exactamente dónde está.
+
+  --- NIVEL 12: Jefe Final Tier 2 (id_nivel=12) ---
+  id=222| FILL_BLANK | Completa: grep ___ "TODO" /home/dan/proyecto (recursivo, solo nombres)
+        | respuesta: -rl | pista: -r (recursivo) y -l (solo nombres de archivo).
+  id=223| FILL_BLANK | Completa: chmod ___ deploy.sh (dar ejecución solo al dueño)
+        | respuesta: u+x | pista: u = user (dueño), + = añadir, x = execute.
+
+  --- NIVEL 13: grep + chmod (id_nivel=13) ---
+  id=224| TYPE_COMMAND | Buscar "password" sin distinguir mayúsculas en /etc,
+        |               mostrar solo nombres de archivos.
+        | respuesta: grep -ril "password" /etc
+        | pista: -r recursivo, -i ignore case, -l solo nombres.
+  id=225| TYPE_COMMAND | Quitar el permiso de lectura a otros en secreto.txt
+        | respuesta: chmod o-r secreto.txt
+        | pista: o = others (otros), - = quitar, r = read.
+
+  --- NIVEL 14: find (id_nivel=14) ---
+  id=226| TYPE_COMMAND | Encontrar archivos modificados en las últimas 24 horas en /home
+        | respuesta: find /home -mtime -1
+        | pista: -mtime -1 = modificado hace menos de 1 día.
+  id=227| TYPE_COMMAND | Buscar archivos mayores de 100MB en /var
+        | respuesta: find /var -size +100M
+        | pista: -size +100M = archivos de más de 100 megabytes.
+
+  --- NIVEL 15: grep avanzado (id_nivel=15) ---
+  id=228| TYPE_COMMAND | Mostrar 3 líneas de contexto ANTES de "FATAL" en app.log
+        | respuesta: grep -B 3 "FATAL" app.log
+        | pista: -B N muestra N líneas Antes (Before) de la coincidencia.
+  id=229| TYPE_COMMAND | Buscar líneas que empiecen con "ERROR" en syslog
+        | respuesta: grep "^ERROR" /var/log/syslog
+        | pista: ^ en regex significa "inicio de línea".
+
+  --- NIVEL 16: ps y top (id_nivel=16) ---
+  id=230| TERMINAL_SIM | Ver todos los procesos con usuario, PID, CPU y memoria
+        | respuesta: ps aux
+        | pista: a=todos los usuarios, u=formato usuario, x=sin terminal.
+  id=231| TERMINAL_SIM | Monitorear proceso PID 1234 durante 5 iteraciones
+        | respuesta: top -n 5 -p 1234
+        | pista: -n N iteraciones, -p PID proceso específico.
+
+  --- NIVEL 17: df y free (id_nivel=17) ---
+  id=232| TERMINAL_SIM | Ver espacio disponible en todos los discos en formato legible
+        | respuesta: df -h
+        | pista: -h de "human-readable": muestra en KB/MB/GB.
+  id=233| TERMINAL_SIM | Ver uso de memoria RAM y swap mostrando totales al final
+        | respuesta: free -ht
+        | pista: -h legible, -t muestra totales de RAM + swap al final.
+
+  --- NIVEL 18: grep en terminal (id_nivel=18) ---
+  id=234| TERMINAL_SIM | Buscar "denied" en todos los logs de /var/log con número de línea
+        | respuesta: grep -rn "denied" /var/log
+        | pista: -r recursivo, -n número de línea.
+  id=235| TERMINAL_SIM | Contar cuántas veces aparece "error" en syslog
+        | respuesta: grep -c "error" /var/log/syslog
+        | pista: -c cuenta las coincidencias.
+
+  --- NIVEL 19: chmod (id_nivel=19) ---
+  id=236| TERMINAL_SIM | Hacer ejecutables todos los .sh en /home/dan/scripts para el dueño
+        | respuesta: chmod u+x /home/dan/scripts/*.sh
+        | pista: u+x añade ejecución al dueño. *.sh aplica a todos los scripts.
+  id=237| TERMINAL_SIM | Dar permiso de escritura al grupo en /datos
+        | respuesta: chmod g+w /datos
+        | pista: g = group (grupo), +w = añadir escritura.
+
+  --- NIVEL 20: find + tar (id_nivel=20) ---
+  id=238| TERMINAL_SIM | Borrar archivos .tmp en /tmp con más de 7 días
+        | respuesta: find /tmp -name "*.tmp" -mtime +7 -delete
+        | pista: -mtime +7 = más de 7 días, -delete los elimina.
+  id=239| TERMINAL_SIM | Crear backup comprimido con gzip de /etc
+        | respuesta: tar -czf etc_backup.tar.gz /etc
+        | pista: -c crear, -z gzip, -f nombre del archivo, luego el origen.
+
+  NOTA: Los niveles 21-24 son Boss Fights implementados en Java (JefeFinalPanel).
+        No tienen ejercicios en la base de datos.
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.usuarios
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Registro de todos los usuarios del juego.
+
+COLUMNAS:
+  id_usuario      INTEGER    PRIMARY KEY  AUTO-INCREMENT
+  nombre_usuario  TEXT       NOT NULL  UNIQUE
+                             → nombre de login (mínimo 3 caracteres, sin espacios)
+  email           TEXT       NULL  UNIQUE
+                             → correo electrónico (opcional)
+  password_hash   TEXT       NULL
+                             → no se usa actualmente; el login solo requiere nombre
+  puntos_totales  INTEGER    DEFAULT 0
+                             → puntos acumulados al completar niveles.
+                               Se incrementa automáticamente en fn_avanzar_nivel_usuario
+  nivel_actual    INTEGER    DEFAULT 1
+                             → nivel más alto desbloqueado. Se actualiza vía trigger.
+  fecha_creacion  TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+  activo          BOOLEAN    DEFAULT true
+                             → false = usuario "borrado" (soft delete vía RULE)
+
+RESTRICCIONES:
+  PK:    usuarios_pkey      → id_usuario
+  UNIQUE: uq_nombre_usuario → nombre_usuario
+  UNIQUE: uq_email          → email
+  CHECK: chk_nivel_rango    → nivel_actual BETWEEN 1 AND 24
+  CHECK: chk_puntos_positivos → puntos_totales >= 0
+  RULE:  rule_soft_delete_usuarios
+         → DELETE en usuarios se convierte en UPDATE activo=false
+           (los usuarios nunca se borran físicamente)
+
+REGLA IMPORTANTE: sp_registrar_usuario valida que el nombre tenga al menos
+3 caracteres. Si el nombre ya existe, lanza excepción con mensaje de error
+visible al usuario.
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.progreso_nivel
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Registra cuánto avanzó cada usuario en cada nivel.
+           PK compuesta: (id_usuario, id_nivel) — un registro por usuario por nivel.
+
+COLUMNAS:
+  id_usuario         INTEGER    NOT NULL  FK → usuarios.id_usuario  (ON DELETE CASCADE)
+  id_nivel           INTEGER    NOT NULL  FK → niveles.id_nivel     (ON DELETE CASCADE)
+  completado         BOOLEAN    DEFAULT false
+                                → true cuando el usuario alcanza puntos_para_pasar.
+                                  Al pasar a true, se dispara el trigger de desbloqueo.
+  puntos_acumulados  INTEGER    DEFAULT 0
+                                → suma de puntos obtenidos en este nivel.
+                                  Cada respuesta correcta suma 10 puntos.
+  intentos_totales   INTEGER    DEFAULT 0
+                                → total de veces que respondió ejercicios del nivel
+  fecha_inicio       TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+  fecha_completado   TIMESTAMP  NULL
+                                → se llena cuando completado pasa a true
+
+RESTRICCIONES:
+  PK:    progreso_nivel_pkey → (id_usuario, id_nivel)
+  CHECK: chk_pn_puntos      → puntos_acumulados >= 0
+  CHECK: chk_pn_intentos    → intentos_totales >= 0
+  FK:    fk_pn_nivel        → niveles.id_nivel    (ON DELETE CASCADE)
+  FK:    fk_pn_usuario      → usuarios.id_usuario (ON DELETE CASCADE)
+TRIGGER:
+  tr_avanzar_nivel  AFTER UPDATE OF completado
+  → fn_avanzar_nivel_usuario() (ver Sección 3)
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.progreso_usuarios
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Cuántas veces ha practicado cada usuario cada comando y si lo domina.
+           PK compuesta: (id_usuario, id_comando).
+
+COLUMNAS:
+  id_usuario        INTEGER    NOT NULL  FK → usuarios.id_usuario  (ON DELETE CASCADE)
+  id_comando        INTEGER    NOT NULL  FK → comandos.id_comando  (ON DELETE CASCADE)
+  dominado          BOOLEAN    DEFAULT false
+                               → true cuando el usuario ha practicado suficiente
+  veces_practicado  INTEGER    DEFAULT 0
+                               → contador de prácticas
+  ultima_practica   TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+
+RESTRICCIONES:
+  PK:    progreso_usuarios_pkey → (id_usuario, id_comando)
+  CHECK: chk_veces_practicado   → veces_practicado >= 0
+  FK:    fk_pu_comando          → comandos.id_comando (ON DELETE CASCADE)
+  FK:    fk_pu_usuario          → usuarios.id_usuario (ON DELETE CASCADE)
+TRIGGERS:
+  tr_proteger_progreso  BEFORE UPDATE
+  → fn_proteger_progreso(): evita que veces_practicado baje de 0
+  tr_log_sesion_practica  AFTER INSERT
+  → fn_log_sesion(): registra sesión en sesiones_log
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.intentos_ejercicio
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Historial completo de todas las respuestas dadas por los usuarios.
+
+COLUMNAS:
+  id_intento       INTEGER    PRIMARY KEY  AUTO-INCREMENT
+  id_usuario       INTEGER    NOT NULL  FK → usuarios.id_usuario   (ON DELETE CASCADE)
+  id_ejercicio     INTEGER    NOT NULL  FK → ejercicios.id_ejercicio (ON DELETE CASCADE)
+  id_nivel         INTEGER    NOT NULL  FK → niveles.id_nivel       (ON DELETE CASCADE)
+  respuesta_dada   TEXT       NULL      → texto exacto que escribió/seleccionó el usuario
+  correcta         BOOLEAN    NOT NULL  DEFAULT false
+  puntos_ganados   INTEGER    DEFAULT 0 → 10 si correcta, 0 si incorrecta
+  tiempo_segundos  INTEGER    NULL      → segundos tardó en responder
+  fecha_intento    TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+
+RESTRICCIONES:
+  PK:    intentos_ejercicio_pkey → id_intento
+  CHECK: chk_puntos_intento     → puntos_ganados >= 0
+  CHECK: chk_tiempo_intento     → tiempo_segundos IS NULL OR tiempo_segundos >= 0
+  FK: CASCADE en id_usuario, id_ejercicio, id_nivel
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.sesiones_log
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Registro de sesiones de práctica (lo llena automáticamente el trigger).
+
+COLUMNAS:
+  id_sesion    INTEGER    PRIMARY KEY  AUTO-INCREMENT
+  id_usuario   INTEGER    NULL  FK → usuarios.id_usuario (ON DELETE CASCADE)
+  ip_cliente   TEXT       NULL
+  fecha_login  TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+  fecha_logout TIMESTAMP  NULL
+
+RULE: rule_sesion_unica
+  Si el usuario ya tiene una sesión abierta (fecha_logout IS NULL), en lugar
+  de insertar una nueva fila, actualiza el fecha_login de la existente.
+  Garantiza que no haya sesiones duplicadas abiertas al mismo tiempo.
+
+
+════════════════════════════════════════════════════════════
+TABLA: learnux.comandos_audit_log
+════════════════════════════════════════════════════════════
+
+PROPÓSITO: Auditoría automática de cambios en la tabla comandos.
+           No se puede borrar ningún registro (protegido por RULE).
+
+COLUMNAS:
+  id_audit       INTEGER    PRIMARY KEY  AUTO-INCREMENT
+  tipo_accion    TEXT       NOT NULL    → 'INSERT', 'UPDATE' o 'DELETE'
+  nombre_comando TEXT       NOT NULL    → nombre del comando afectado
+  usuario_db     TEXT       DEFAULT CURRENT_USER → usuario de PostgreSQL que hizo el cambio
+  fecha_evento   TIMESTAMP  DEFAULT CURRENT_TIMESTAMP
+
+RESTRICCIONES:
+  CHECK: chk_tipo_accion → tipo_accion IN ('INSERT','UPDATE','DELETE')
+  RULE:  rule_audit_inmutable → DELETE en esta tabla no hace nada (registros permanentes)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 3 — FUNCIONES (código completo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+f_buscar_usuario(p_nombre TEXT)
+════════════════════════════════════════════════════════════
+RETORNA: ret_id_usuario, ret_nombre_usuario, ret_fecha_creacion
+PARA QUÉ: Login. Busca un usuario por nombre exacto.
+USADO EN: UsuarioDao.java → LoginPanel
+
+CREATE OR REPLACE FUNCTION learnux.f_buscar_usuario(p_nombre text)
+ RETURNS TABLE(ret_id_usuario integer, ret_nombre_usuario text,
+               ret_fecha_creacion timestamp)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT id_usuario, nombre_usuario, fecha_creacion
+        FROM learnux.usuarios
+        WHERE nombre_usuario = p_nombre
+          AND activo = TRUE;
+END;
+$function$
+
+EXPLICACIÓN LÍNEA A LÍNEA:
+  - Recibe p_nombre: el nombre que escribió el usuario en el login
+  - WHERE nombre_usuario = p_nombre → búsqueda exacta (case-sensitive)
+  - AND activo = TRUE → no encuentra usuarios "borrados" (soft delete)
+  - Si no hay resultados, el DAO lanza ServiceException "Usuario no encontrado"
+
+
+════════════════════════════════════════════════════════════
+f_buscar_comando(p_nombre TEXT)
+════════════════════════════════════════════════════════════
+RETORNA: ret_id_comando, ret_comando_nombre, ret_descripcion,
+         ret_sintaxis, ret_dificultad, ret_categoria
+PARA QUÉ: Buscador de la enciclopedia (tab Explorar).
+USADO EN: BuscadorDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_buscar_comando(p_nombre text)
+ RETURNS TABLE(ret_id_comando integer, ret_comando_nombre text,
+               ret_descripcion text, ret_sintaxis text,
+               ret_dificultad text, ret_categoria text)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT c.id_comando, c.comando_nombre, c.descripcion,
+               c.sintaxis, c.dificultad_nivel::TEXT, cat.nombre
+        FROM learnux.comandos c
+        JOIN learnux.categorias cat ON c.id_categoria = cat.id_categoria
+        WHERE LOWER(c.comando_nombre) LIKE LOWER('%' || p_nombre || '%');
+END;
+$function$
+
+EXPLICACIÓN:
+  - LIKE '%p_nombre%' → búsqueda parcial (no necesita coincidir exacto)
+  - LOWER en ambos lados → búsqueda case-insensitive
+  - JOIN con categorias → devuelve también el nombre de la categoría
+
+
+════════════════════════════════════════════════════════════
+f_get_niveles_con_progreso(p_id_usuario INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: una fila por nivel con estado de progreso del usuario
+PARA QUÉ: Cargar la lista de niveles en NivelesPanel.
+USADO EN: NivelDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_get_niveles_con_progreso(p_id_usuario integer)
+ RETURNS TABLE(ret_id_nivel integer, ret_numero integer, ret_nombre text,
+               ret_descripcion text, ret_tipo_ejercicio text, ret_dificultad text,
+               ret_puntos_para_pasar integer, ret_puntos_recompensa integer,
+               ret_completado boolean, ret_puntos_acumulados integer,
+               ret_desbloqueado boolean)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RETURN QUERY
+    SELECT
+        n.id_nivel, n.numero, n.nombre, n.descripcion,
+        n.tipo_ejercicio::TEXT, n.dificultad::TEXT,
+        n.puntos_para_pasar, n.puntos_recompensa,
+        COALESCE(pn.completado, FALSE),
+        COALESCE(pn.puntos_acumulados, 0),
+        CASE
+            WHEN n.desbloqueado_por IS NULL THEN TRUE  -- nivel 1: siempre accesible
+            WHEN EXISTS (
+                SELECT 1 FROM learnux.progreso_nivel prereq
+                WHERE prereq.id_usuario = p_id_usuario
+                  AND prereq.id_nivel   = n.desbloqueado_por
+                  AND prereq.completado = TRUE
+            ) THEN TRUE  -- el nivel previo está completado
+            ELSE FALSE   -- aún bloqueado
+        END
+    FROM learnux.niveles n
+    LEFT JOIN learnux.progreso_nivel pn
+           ON pn.id_nivel = n.id_nivel AND pn.id_usuario = p_id_usuario
+    ORDER BY n.numero;
+END;
+$function$
+
+EXPLICACIÓN:
+  - LEFT JOIN con progreso_nivel → si el usuario no tiene registro para ese
+    nivel, COALESCE devuelve FALSE/0 en lugar de NULL
+  - CASE para ret_desbloqueado:
+      Si desbloqueado_por es NULL  → nivel 1, siempre abierto
+      Si el nivel previo tiene completado=TRUE → desbloqueado
+      En cualquier otro caso → bloqueado
+
+
+════════════════════════════════════════════════════════════
+f_get_ejercicios_nivel(p_id_nivel INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: todos los ejercicios activos de un nivel, ordenados por `orden`
+PARA QUÉ: Cargar ejercicios en EjercicioPanel.
+USADO EN: EjercicioDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_get_ejercicios_nivel(p_id_nivel integer)
+ RETURNS TABLE(ret_id_ejercicio integer, ret_id_nivel integer,
+               ret_id_comando integer, ret_tipo text, ret_pregunta text,
+               ret_respuesta_correcta text, ret_opciones_json text,
+               ret_pista text, ret_orden integer, ret_salida_simulada text)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT e.id_ejercicio, e.id_nivel, e.id_comando, e.tipo::TEXT,
+               e.pregunta, e.respuesta_correcta, e.opciones_json::TEXT,
+               e.pista, e.orden,
+               COALESCE(e.salida_simulada, c.salida_simulada)
+        FROM learnux.ejercicios e
+        LEFT JOIN learnux.comandos c ON c.id_comando = e.id_comando
+        WHERE e.id_nivel = p_id_nivel AND e.activo = TRUE
+        ORDER BY e.orden;
+END;
+$function$
+
+EXPLICACIÓN:
+  - COALESCE(e.salida_simulada, c.salida_simulada) → si el ejercicio no tiene
+    su propia salida simulada, usa la del comando
+  - WHERE activo = TRUE → no devuelve ejercicios desactivados
+  - ORDER BY e.orden → devuelve en el orden correcto
+
+
+════════════════════════════════════════════════════════════
+f_get_comandos_de_nivel(p_id_nivel INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: los comandos que se practican en ese nivel
+PARA QUÉ: Panel lateral "Comandos en este nivel".
+USADO EN: ComandoDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_get_comandos_de_nivel(p_id_nivel integer)
+ RETURNS TABLE(ret_id_comando integer, ret_nombre text, ret_descripcion text,
+               ret_sintaxis text, ret_dificultad text)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM (
+        -- 1. Comandos directamente asignados en ejercicios.id_comando
+        SELECT DISTINCT c.id_comando, c.comando_nombre::TEXT,
+               c.descripcion::TEXT, c.sintaxis::TEXT, c.dificultad_nivel::TEXT
+        FROM learnux.ejercicios e
+        JOIN learnux.comandos c ON c.id_comando = e.id_comando
+        WHERE e.id_nivel = p_id_nivel AND e.id_comando IS NOT NULL
+          AND e.activo = TRUE
+
+        UNION
+
+        -- 2. Comandos que aparecen como CLAVES en opciones_json (para DragDropMulti)
+        SELECT DISTINCT c.id_comando, c.comando_nombre::TEXT,
+               c.descripcion::TEXT, c.sintaxis::TEXT, c.dificultad_nivel::TEXT
+        FROM learnux.ejercicios e
+        CROSS JOIN LATERAL jsonb_object_keys(e.opciones_json) AS key
+        JOIN learnux.comandos c ON c.comando_nombre = key
+        WHERE e.id_nivel = p_id_nivel AND e.id_comando IS NULL
+          AND e.activo = TRUE AND jsonb_typeof(e.opciones_json) = 'object'
+
+        UNION
+
+        -- 3. Comandos que aparecen como VALORES en opciones_json (para arrays)
+        SELECT DISTINCT c.id_comando, c.comando_nombre::TEXT,
+               c.descripcion::TEXT, c.sintaxis::TEXT, c.dificultad_nivel::TEXT
+        FROM learnux.ejercicios e
+        CROSS JOIN LATERAL jsonb_array_elements_text(e.opciones_json) AS elem
+        JOIN learnux.comandos c ON c.comando_nombre = elem
+        WHERE e.id_nivel = p_id_nivel AND e.id_comando IS NULL
+          AND e.activo = TRUE AND jsonb_typeof(e.opciones_json) = 'array'
+    ) sub
+    ORDER BY sub.comando_nombre;
+END;
+$function$
+
+EXPLICACIÓN:
+  - UNION de 3 fuentes para encontrar todos los comandos del nivel:
+    1. Los que están en ejercicios.id_comando directamente
+    2. Los que aparecen como claves en un JSON objeto ({"ls":"desc","cd":"desc"})
+    3. Los que aparecen en un JSON array (["ls","cd","grep"])
+  - CROSS JOIN LATERAL jsonb_object_keys / jsonb_array_elements_text →
+    descompone el JSON para buscar nombres de comandos
+
+
+════════════════════════════════════════════════════════════
+f_get_opciones_comando(p_id_comando INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: todas las banderas/flags de un comando
+PARA QUÉ: Panel "Flags" en la pantalla Explorar.
+USADO EN: OpcionComandoDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_get_opciones_comando(p_id_comando integer)
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT id_opcion, id_comando, bandera, descripcion, ejemplo_uso
+        FROM learnux.opciones_comando
+        WHERE id_comando = p_id_comando ORDER BY id_opcion;
+END;
+$function$
+
+
+════════════════════════════════════════════════════════════
+f_get_todas_categorias()
+════════════════════════════════════════════════════════════
+RETORNA: todas las categorías de comandos
+PARA QUÉ: Panel izquierdo de la pantalla Explorar.
+USADO EN: CategoriaDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_get_todas_categorias()
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT id_categoria, nombre, descripcion
+        FROM learnux.categorias ORDER BY id_categoria;
+END;
+$function$
+
+
+════════════════════════════════════════════════════════════
+f_ls_comandos_categoria(p_id_categoria INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: comandos de una categoría específica
+PARA QUÉ: Al hacer clic en una categoría en el Explorador.
+USADO EN: ComandoDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_ls_comandos_categoria(p_id_categoria integer)
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT c.id_comando, c.id_categoria, c.comando_nombre,
+               c.descripcion, c.sintaxis, c.dificultad_nivel::TEXT
+        FROM learnux.comandos c
+        WHERE c.id_categoria = p_id_categoria;
+END;
+$function$
+
+
+════════════════════════════════════════════════════════════
+f_porcentaje_nivel(p_id_usuario INT, p_id_nivel INT)
+════════════════════════════════════════════════════════════
+RETORNA: NUMERIC (porcentaje 0-100)
+PARA QUÉ: Calcular si el usuario pasó el nivel.
+USADO EN: sp_registrar_intento (internamente)
+
+CREATE OR REPLACE FUNCTION learnux.f_porcentaje_nivel(p_id_usuario integer, p_id_nivel integer)
+AS $function$
+DECLARE
+    v_total     INTEGER;
+    v_correctos INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO v_total
+    FROM learnux.ejercicios WHERE id_nivel = p_id_nivel AND activo = TRUE;
+
+    IF v_total = 0 THEN RETURN 0; END IF;
+
+    SELECT COUNT(DISTINCT ie.id_ejercicio) INTO v_correctos
+    FROM learnux.intentos_ejercicio ie
+    WHERE ie.id_usuario = p_id_usuario AND ie.id_nivel = p_id_nivel
+      AND ie.correcta = TRUE;
+
+    RETURN ROUND((v_correctos::NUMERIC / v_total) * 100, 1);
+END;
+$function$
+
+EXPLICACIÓN:
+  - Cuenta ejercicios totales del nivel (activos)
+  - Cuenta ejercicios DISTINTOS respondidos correctamente por el usuario
+  - Devuelve el porcentaje → si >= puntos_para_pasar, el nivel se completa
+
+
+════════════════════════════════════════════════════════════
+f_resumen_progreso(p_id_usuario INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: ret_comando, ret_dificultad, ret_dominado, ret_veces, ret_ultima
+PARA QUÉ: Tab "Progreso" en PrincipalPanel.
+USADO EN: ResumenDao.java
+
+CREATE OR REPLACE FUNCTION learnux.f_resumen_progreso(p_id_usuario integer)
+AS $function$
+BEGIN
+    RETURN QUERY
+        SELECT c.comando_nombre, c.dificultad_nivel::TEXT,
+               p.dominado, p.veces_practicado, p.ultima_practica
+        FROM learnux.progreso_usuarios p
+        JOIN learnux.comandos c ON p.id_comando = c.id_comando
+        WHERE p.id_usuario = p_id_usuario
+        ORDER BY p.ultima_practica DESC;
+END;
+$function$
+
+
+════════════════════════════════════════════════════════════
+f_siguiente_nivel(p_id_usuario INTEGER)
+════════════════════════════════════════════════════════════
+RETORNA: INTEGER (id del próximo nivel a jugar)
+
+CREATE OR REPLACE FUNCTION learnux.f_siguiente_nivel(p_id_usuario integer)
+AS $function$
+DECLARE v_nivel_actual INTEGER;
+BEGIN
+    SELECT nivel_actual INTO v_nivel_actual FROM learnux.usuarios
+    WHERE id_usuario = p_id_usuario;
+    RETURN v_nivel_actual;
+END;
+$function$
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 4 — PROCEDIMIENTOS ALMACENADOS (código completo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+sp_registrar_usuario(p_nombre TEXT, p_email TEXT DEFAULT NULL)
+════════════════════════════════════════════════════════════
+PARA QUÉ: Crear una cuenta nueva.
+USADO EN: UsuarioService.registrar() → UsuarioDao.java
+
+CREATE OR REPLACE PROCEDURE learnux.sp_registrar_usuario(
+    IN p_nombre text, IN p_email text DEFAULT NULL)
+ LANGUAGE plpgsql
+AS $procedure$
+BEGIN
+    IF LENGTH(TRIM(p_nombre)) < 3 THEN
+        RAISE EXCEPTION 'El nombre debe tener al menos 3 caracteres';
+    END IF;
+
+    INSERT INTO learnux.usuarios (nombre_usuario, email)
+    VALUES (TRIM(p_nombre), LOWER(TRIM(p_email)));
+
+    INSERT INTO learnux.progreso_nivel (id_usuario, id_nivel)
+    SELECT currval('learnux.usuarios_id_usuario_seq'), id_nivel
+    FROM learnux.niveles WHERE numero = 1;
+
+EXCEPTION WHEN unique_violation THEN
+    RAISE EXCEPTION 'El nombre de usuario "%" ya existe', p_nombre;
+END;
+$procedure$
+
+EXPLICACIÓN LÍNEA A LÍNEA:
+  1. Valida que el nombre tenga 3+ caracteres
+  2. Inserta el usuario (TRIM elimina espacios, LOWER al email)
+  3. currval() obtiene el id recién generado
+  4. Inserta en progreso_nivel para el nivel 1 → esto desbloquea nivel 1
+  5. EXCEPTION unique_violation → si el nombre ya existe, lanza error legible
+
+
+════════════════════════════════════════════════════════════
+sp_registrar_intento(p_id_usuario INT, p_id_ejercicio INT,
+                     p_respuesta TEXT, p_tiempo_seg INT DEFAULT NULL)
+════════════════════════════════════════════════════════════
+PARA QUÉ: Registrar cada respuesta del usuario y actualizar su progreso.
+USADO EN: ProgresoDao.java → llamado después de cada ejercicio
+
+CREATE OR REPLACE PROCEDURE learnux.sp_registrar_intento(...)
+ LANGUAGE plpgsql
+AS $procedure$
+DECLARE
+    v_id_nivel          INTEGER;
+    v_respuesta_ok      TEXT;
+    v_es_correcta       BOOLEAN;
+    v_puntos            INTEGER;
+    v_porcentaje        NUMERIC;
+    v_puntos_para_pasar INTEGER;
+BEGIN
+    -- 1. Obtener datos del ejercicio
+    SELECT e.id_nivel, e.respuesta_correcta, n.puntos_para_pasar
+    INTO v_id_nivel, v_respuesta_ok, v_puntos_para_pasar
+    FROM learnux.ejercicios e
+    JOIN learnux.niveles n ON e.id_nivel = n.id_nivel
+    WHERE e.id_ejercicio = p_id_ejercicio;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Ejercicio % no encontrado', p_id_ejercicio;
+    END IF;
+
+    -- 2. Comparar respuesta (case-insensitive)
+    v_es_correcta := LOWER(TRIM(p_respuesta)) = LOWER(TRIM(v_respuesta_ok));
+    v_puntos      := CASE WHEN v_es_correcta THEN 10 ELSE 0 END;
+
+    -- 3. Registrar el intento
+    INSERT INTO learnux.intentos_ejercicio
+        (id_usuario, id_ejercicio, id_nivel, respuesta_dada,
+         correcta, puntos_ganados, tiempo_segundos)
+    VALUES (p_id_usuario, p_id_ejercicio, v_id_nivel, p_respuesta,
+            v_es_correcta, v_puntos, p_tiempo_seg);
+
+    -- 4. Actualizar progreso del nivel (UPSERT)
+    INSERT INTO learnux.progreso_nivel (id_usuario, id_nivel, intentos_totales)
+    VALUES (p_id_usuario, v_id_nivel, 1)
+    ON CONFLICT (id_usuario, id_nivel) DO UPDATE SET
+        intentos_totales  = learnux.progreso_nivel.intentos_totales + 1,
+        puntos_acumulados = learnux.progreso_nivel.puntos_acumulados + v_puntos;
+
+    -- 5. Calcular porcentaje y marcar como completado si aplica
+    v_porcentaje := learnux.f_porcentaje_nivel(p_id_usuario, v_id_nivel);
+
+    IF v_porcentaje >= v_puntos_para_pasar THEN
+        UPDATE learnux.progreso_nivel
+        SET completado = TRUE, fecha_completado = CURRENT_TIMESTAMP
+        WHERE id_usuario = p_id_usuario AND id_nivel = v_id_nivel
+          AND completado = FALSE;
+        -- Este UPDATE dispara tr_avanzar_nivel → desbloquea el siguiente nivel
+    END IF;
+END;
+$procedure$
+
+EXPLICACIÓN:
+  - Cada respuesta correcta vale 10 puntos
+  - ON CONFLICT → si ya existe registro del nivel, suma; si no, lo crea
+  - Cuando el porcentaje >= puntos_para_pasar: completado=TRUE
+  - Ese UPDATE dispara automáticamente el trigger tr_avanzar_nivel
+
+
+════════════════════════════════════════════════════════════
+sp_actualizar_progreso(p_id_usuario INT, p_id_comando INT, p_dominado BOOL)
+════════════════════════════════════════════════════════════
+PARA QUÉ: Marcar un comando como practicado o dominado.
+USADO EN: ProgresoService.java
+
+CREATE OR REPLACE PROCEDURE learnux.sp_actualizar_progreso(...)
+AS $procedure$
+BEGIN
+    INSERT INTO learnux.progreso_usuarios
+        (id_usuario, id_comando, dominado, veces_practicado, ultima_practica)
+    VALUES (p_id_usuario, p_id_comando, p_dominado, 1, CURRENT_TIMESTAMP)
+    ON CONFLICT (id_usuario, id_comando) DO UPDATE SET
+        dominado         = EXCLUDED.dominado,
+        veces_practicado = learnux.progreso_usuarios.veces_practicado + 1,
+        ultima_practica  = CURRENT_TIMESTAMP;
+END;
+$procedure$
+
+
+════════════════════════════════════════════════════════════
+sp_agregar_comando(p_id_categoria INT, p_nombre TEXT,
+                   p_descripcion TEXT, p_sintaxis TEXT,
+                   p_dificultad dificultad_tipo)
+════════════════════════════════════════════════════════════
+PARA QUÉ: Insertar un nuevo comando en la enciclopedia (administración).
+
+CREATE OR REPLACE PROCEDURE learnux.sp_agregar_comando(...)
+AS $procedure$
+BEGIN
+    INSERT INTO learnux.comandos
+        (id_categoria, comando_nombre, descripcion, sintaxis, dificultad_nivel)
+    VALUES (p_id_categoria, p_nombre, p_descripcion, p_sintaxis, p_dificultad);
+END;
+$procedure$
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 5 — TRIGGERS (código completo + explicación)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+tr_normalizar_comando  →  fn_normalizar_comando()
+BEFORE INSERT OR UPDATE OF comando_nombre ON comandos
+════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION learnux.fn_normalizar_comando()
+ RETURNS trigger LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.comando_nombre := LOWER(TRIM(NEW.comando_nombre));
+    RETURN NEW;
+END;
+$function$
+
+QUÉ HACE: Antes de insertar o actualizar, convierte el nombre del comando
+a minúsculas y quita espacios al inicio y al final.
+POR QUÉ: La tabla tiene un CHECK chk_cmd_minusculas que exige lowercase.
+         El trigger garantiza que nunca falle ese check aunque el código
+         envíe "LS" o " grep ".
+
+
+════════════════════════════════════════════════════════════
+tr_audit_comandos  →  fn_audit_comandos()
+AFTER INSERT OR UPDATE OR DELETE ON comandos
+════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION learnux.fn_audit_comandos()
+ RETURNS trigger LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO learnux.comandos_audit_log (tipo_accion, nombre_comando)
+        VALUES ('INSERT', NEW.comando_nombre);
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO learnux.comandos_audit_log (tipo_accion, nombre_comando)
+        VALUES ('DELETE', OLD.comando_nombre);
+        RETURN OLD;
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO learnux.comandos_audit_log (tipo_accion, nombre_comando)
+        VALUES ('UPDATE', NEW.comando_nombre);
+        RETURN NEW;
+    END IF;
+    RETURN NULL;
+END;
+$function$
+
+QUÉ HACE: Después de cualquier cambio en comandos, registra en comandos_audit_log
+qué operación fue (INSERT/UPDATE/DELETE) y qué comando fue afectado.
+TG_OP: Variable especial de PostgreSQL que vale 'INSERT', 'UPDATE' o 'DELETE'.
+NEW: Fila nueva (INSERT/UPDATE). OLD: Fila anterior (DELETE/UPDATE).
+
+
+════════════════════════════════════════════════════════════
+tr_avanzar_nivel  →  fn_avanzar_nivel_usuario()
+AFTER UPDATE OF completado ON progreso_nivel
+════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION learnux.fn_avanzar_nivel_usuario()
+ RETURNS trigger LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_siguiente INTEGER;
+BEGIN
+    -- Solo actúa cuando completado cambia de FALSE a TRUE
+    IF NEW.completado = TRUE AND (OLD.completado IS DISTINCT FROM TRUE) THEN
+
+        -- Obtiene el número del siguiente nivel
+        SELECT n.numero + 1 INTO v_siguiente
+        FROM learnux.niveles n WHERE n.id_nivel = NEW.id_nivel;
+
+        IF v_siguiente IS NOT NULL AND v_siguiente <= 24 THEN
+            -- Actualiza puntos y nivel_actual del usuario
+            UPDATE learnux.usuarios
+            SET nivel_actual   = GREATEST(nivel_actual, v_siguiente),
+                puntos_totales = puntos_totales + (
+                    SELECT puntos_recompensa FROM learnux.niveles
+                    WHERE id_nivel = NEW.id_nivel
+                )
+            WHERE id_usuario = NEW.id_usuario;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$function$
+
+QUÉ HACE: Es el motor del sistema de progresión.
+  1. Solo actúa cuando completado pasa de FALSE → TRUE (no en otras actualizaciones)
+  2. Calcula cuál es el número del siguiente nivel
+  3. Si existe y es <= 24:
+     - Actualiza nivel_actual del usuario al máximo entre su nivel actual y el siguiente
+     - Suma los puntos de recompensa del nivel completado a puntos_totales
+  GREATEST: asegura que nivel_actual nunca baje (si ya tiene nivel 10, no retrocede a 6)
+  IS DISTINCT FROM: maneja correctamente los NULL (OLD.completado puede ser NULL)
+
+
+════════════════════════════════════════════════════════════
+tr_proteger_progreso  →  fn_proteger_progreso()
+BEFORE UPDATE ON progreso_usuarios
+════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION learnux.fn_proteger_progreso()
+ RETURNS trigger LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF NEW.veces_practicado < 0 THEN
+        NEW.veces_practicado := 0;
+    END IF;
+    RETURN NEW;
+END;
+$function$
+
+QUÉ HACE: Antes de actualizar progreso_usuarios, si veces_practicado
+intentara bajar de 0, lo fija en 0. El progreso no puede retroceder.
+
+
+════════════════════════════════════════════════════════════
+tr_log_sesion_practica  →  fn_log_sesion()
+AFTER INSERT ON progreso_usuarios
+════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION learnux.fn_log_sesion()
+ RETURNS trigger LANGUAGE plpgsql
+AS $function$
+BEGIN
+    INSERT INTO learnux.sesiones_log (id_usuario)
+    VALUES (NEW.id_usuario);
+    RETURN NEW;
+END;
+$function$
+
+QUÉ HACE: Cuando el usuario practica un comando por primera vez
+(INSERT en progreso_usuarios), registra la sesión en sesiones_log.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 6 — VISTAS (código completo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+vista_comandos_completos
+  SELECT c.id_comando, c.comando_nombre, c.descripcion, c.sintaxis,
+         c.dificultad_nivel, c.salida_simulada,
+         cat.nombre AS categoria, cat.descripcion AS descripcion_categoria
+  FROM learnux.comandos c
+  JOIN learnux.categorias cat ON c.id_categoria = cat.id_categoria
+  → Une comandos con su categoría en una sola vista
+
+vista_ejercicios_nivel
+  SELECT e.id_ejercicio, e.id_nivel, n.numero AS numero_nivel,
+         n.nombre AS nombre_nivel, e.tipo, e.pregunta,
+         e.respuesta_correcta, e.opciones_json, e.pista, e.orden,
+         c.comando_nombre
+  FROM learnux.ejercicios e
+  JOIN learnux.niveles n ON e.id_nivel = n.id_nivel
+  LEFT JOIN learnux.comandos c ON e.id_comando = c.id_comando
+  WHERE e.activo = TRUE
+  ORDER BY e.id_nivel, e.orden
+  → Ejercicios activos con nombre del nivel y del comando
+
+vista_progreso_usuario
+  SELECT u.id_usuario, u.nombre_usuario, u.puntos_totales, u.nivel_actual,
+         COUNT(p.id_comando) AS total_practicados,
+         SUM(CASE WHEN p.dominado THEN 1 ELSE 0 END) AS total_dominados,
+         MAX(p.ultima_practica) AS ultima_sesion
+  FROM learnux.usuarios u
+  LEFT JOIN learnux.progreso_usuarios p ON u.id_usuario = p.id_usuario
+  GROUP BY u.id_usuario, u.nombre_usuario, u.puntos_totales, u.nivel_actual
+
+vista_ranking
+  SELECT ROW_NUMBER() OVER (ORDER BY puntos_totales DESC, nivel_actual DESC) AS posicion,
+         nombre_usuario, puntos_totales, nivel_actual
+  FROM learnux.usuarios WHERE activo = TRUE
+  ORDER BY puntos_totales DESC
+  → Clasificación de usuarios por puntos
+
+vista_resumen_progreso
+  Igual que vista_progreso_usuario pero solo usuarios activos y con ultima_actividad.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 7 — RULES (reglas de reescritura)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+rule_soft_delete_usuarios  (en tabla usuarios)
+  ON DELETE TO learnux.usuarios
+  DO INSTEAD UPDATE learnux.usuarios SET activo = false
+             WHERE usuarios.id_usuario = old.id_usuario
+  → Cuando se hace DELETE de un usuario, en realidad lo marca como inactivo.
+    El usuario nunca se borra físicamente de la base de datos.
+
+rule_sesion_unica  (en tabla sesiones_log)
+  ON INSERT TO learnux.sesiones_log
+  WHERE EXISTS (sesión abierta sin fecha_logout para ese usuario)
+  DO INSTEAD UPDATE fecha_login = CURRENT_TIMESTAMP
+  → Si el usuario ya tiene sesión activa, actualiza en vez de insertar duplicado.
+
+rule_audit_inmutable  (en tabla comandos_audit_log)
+  ON DELETE TO learnux.comandos_audit_log DO INSTEAD NOTHING
+  → Los registros de auditoría no se pueden borrar jamás.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 8 — FLUJO COMPLETO DE DATOS (cómo se conecta todo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FLUJO: REGISTRARSE
+  1. Usuario escribe nombre en LoginPanel → botón "Crear cuenta"
+  2. Java: UsuarioService.registrar(nombre)
+  3. Java: UsuarioDao → CALL sp_registrar_usuario(nombre, null)
+  4. PostgreSQL: valida longitud mínima (3 caracteres)
+  5. PostgreSQL: INSERT en usuarios
+  6. PostgreSQL: INSERT en progreso_nivel para el nivel 1
+  7. Java recibe el nuevo usuario y navega a PrincipalPanel
+
+FLUJO: LOGIN
+  1. Usuario escribe nombre → botón "Entrar"
+  2. Java: UsuarioService.entrar(nombre)
+  3. Java: UsuarioDao → SELECT * FROM f_buscar_usuario(nombre)
+  4. Si no existe → ServiceException → JOptionPane con error
+  5. Si existe → devuelve objeto Usuario → navega a PrincipalPanel
+
+FLUJO: JUGAR UN NIVEL
+  1. Usuario hace clic en una tarjeta de nivel (NivelesPanel)
+  2. Java: NivelService.getEjercicios(nivel) →
+     a. EjercicioDao → f_get_ejercicios_nivel(id_nivel)
+     b. Filtra TERMINAL_SIM si es Tier 1 o 2 (niveles 1-11, excl. 6 y 12)
+     c. Aplica anti-repetición (IDs_USADOS estático)
+     d. Baraja y devuelve máximo 4 ejercicios
+  3. Java muestra cada ejercicio en EjercicioPanel
+  4. Por cada respuesta del usuario:
+     a. ProgresoService.registrarIntento(usuario, ejercicio, respuesta)
+     b. ProgresoDao → CALL sp_registrar_intento(...)
+     c. sp_registrar_intento:
+        - Compara respuesta (case-insensitive)
+        - INSERT en intentos_ejercicio
+        - UPSERT en progreso_nivel (suma puntos si correcta)
+        - Llama f_porcentaje_nivel para ver si ya completó
+        - Si sí → UPDATE progreso_nivel SET completado=TRUE
+          → TRIGGER tr_avanzar_nivel se dispara automáticamente
+          → fn_avanzar_nivel_usuario desbloquea el nivel siguiente
+  5. Al terminar, NivelesPanel se recarga con f_get_niveles_con_progreso
+     y el siguiente nivel ya aparece desbloqueado
+
+FLUJO: NIVEL BOSS (6, 12, 18, 24)
+  1. NivelesPanel detecta que el nivel es múltiplo de 6 → crea JefeFinalPanel
+  2. JefeFinalPanel tiene las preguntas hardcodeadas en Java (no consulta DB)
+  3. Al ganar: ProgresoService.completarNivelBoss(id_usuario, id_nivel)
+     → ProgresoDao: INSERT/UPDATE en progreso_nivel con completado=TRUE
+     → Esto también dispara tr_avanzar_nivel → desbloquea siguiente tier
+
+FLUJO: EXPLORAR ENCICLOPEDIA
+  1. PrincipalPanel abre tab "Explorar"
+  2. CategoriaDao → f_get_todas_categorias() → muestra categorías en panel izq.
+  3. Al hacer clic en categoría: ComandoDao → f_ls_comandos_categoria(id) →
+     muestra comandos en panel central
+  4. Al hacer clic en comando: OpcionComandoDao → f_get_opciones_comando(id) →
+     muestra flags en panel derecho
+  5. Al buscar: BuscadorDao → f_buscar_comando(texto) → filtra por nombre
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 9 — RESUMEN DE RELACIONES (diagrama textual)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  categorias (5)
+      │ id_categoria
+      │ ON DELETE CASCADE
+      ▼
+  comandos (21)
+      │ id_comando
+      ├── ON DELETE CASCADE ──→ opciones_comando (71)
+      ├── ON DELETE SET NULL ──→ ejercicios.id_comando
+      └── ON DELETE CASCADE ──→ progreso_usuarios.id_comando
+
+  niveles (24)
+      │ id_nivel
+      ├── ON DELETE CASCADE ──→ ejercicios (60)
+      ├── ON DELETE CASCADE ──→ progreso_nivel
+      └── ON DELETE CASCADE ──→ intentos_ejercicio
+
+  usuarios (N)
+      │ id_usuario
+      ├── ON DELETE CASCADE ──→ progreso_nivel
+      ├── ON DELETE CASCADE ──→ progreso_usuarios
+      ├── ON DELETE CASCADE ──→ intentos_ejercicio
+      └── ON DELETE CASCADE ──→ sesiones_log
+
+  progreso_nivel (PK compuesta: id_usuario + id_nivel)
+      → Al poner completado=TRUE: TRIGGER desbloquea nivel siguiente
+
+  progreso_usuarios (PK compuesta: id_usuario + id_comando)
+      → Al insertar: TRIGGER registra sesión
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 10 — CONEXIÓN DESDE JAVA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Clase: DatabaseConnection.java (dao/DatabaseConnection.java)
+Método: DatabaseConnection.getConnection() → java.sql.Connection
+
+Prioridad de configuración (en orden):
+  1. Variable de entorno DATABASE_URL
+     Formato: postgresql://usuario:password@host:puerto/base_de_datos
+     Usado en: Railway (inyectada automáticamente por el servidor)
+  2. Archivo /learnux.properties en el classpath
+     Propiedades: db.url, db.user, db.password
+  3. Valores hardcodeados (desarrollo local):
+     url:      jdbc:postgresql://localhost:5432/learnux_db
+     usuario:  postgres
+     password: (la del sistema)
+
+Todos los DAOs usan try-with-resources:
+  try (Connection conn = DatabaseConnection.getConnection();
+       PreparedStatement ps = conn.prepareStatement(sql)) {
+      // ...
+  }
+  Esto garantiza que la conexión se cierre aunque haya una excepción.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECCIÓN 11 — ANÁLISIS Y MEJORAS RECIENTES (POR GEMINI CLI)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Durante la fase de desarrollo actual, se han implementado reglas de negocio 
+críticas directamente en la capa de Aplicación (Java) para complementar la 
+estructura de la base de datos y garantizar una experiencia de usuario óptima.
+
+1. REFUERZO DEL ARCO DE DIFICULTAD (NIVELES 1-12)
+   Aunque la base de datos define el tipo de ejercicio, se ha implementado una 
+   "Regla de Hierro" en EjercicioPanel.java:
+   - Si nivel.numero <= 12, cualquier ejercicio detectado como TYPE_COMMAND 
+     o TERMINAL_SIM se fuerza automáticamente a MULTIPLE_CHOICE.
+   - Esto garantiza que el usuario no sea forzado a escribir comandos hasta 
+     llegar a la Etapa 3 (Nivel 13+), manteniendo la curva de aprendizaje.
+
+2. SISTEMA ANTI-REPETICIÓN (TIER 1 → TIER 2)
+   Para evitar que el usuario sienta que el contenido es repetitivo al avanzar:
+   - NivelService.java mantiene un 'static Set<Integer> IDs_USADOS'.
+   - Al cargar ejercicios para niveles <= 12, se filtran aquellos que ya fueron 
+     presentados en niveles anteriores del mismo Tier o el anterior.
+   - La memoria se limpia (resetRepetidos) cada vez que se vuelve al Login, 
+     asegurando que una nueva sesión tenga acceso a todo el pool de datos.
+
+3. OPTIMIZACIÓN DE CARGA (LÍMITE DE 4 EJERCICIOS)
+   En lugar de cargar todos los ejercicios disponibles en la base de datos:
+   - NivelService baraja (shuffle) la lista de ejercicios disponibles.
+   - Selecciona exactamente los primeros 4 resultados.
+   - Esto hace que cada intento de un nivel se sienta fresco y diferente, 
+     aumentando el valor de rejugabilidad.
+
+4. AUTOREPARACIÓN DINÁMICA (NIVEL 8)
+   Se detectó que el Nivel 8 ("rm y sus peligros") solía aparecer con 
+   descripción NULL en algunas migraciones.
+   - Se implementó NivelDao.repararNivel8(), invocado en el arranque de MainFrame.
+   - Si la descripción es nula o vacía, el sistema inyecta automáticamente el 
+     contenido HTML necesario, asegurando que la enciclopedia esté siempre completa.
+
+5. LÓGICA DE NAVEGACIÓN "SIGUIENTE NIVEL"
+   El botón "Siguiente Nivel" en la pantalla de resultados no es un simple '+1':
+   - Al hacer clic, NivelesPanel consulta la base de datos para verificar si el 
+     procedimiento almacenado y el trigger ya han desbloqueado el siguiente nivel.
+   - Solo si 'desbloqueado_por' se cumple en la DB, la UI permite la transición directa.
+
+
+================================================================================
+  FIN DEL DOCUMENTO
+================================================================================
