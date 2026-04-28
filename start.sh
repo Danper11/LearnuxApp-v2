@@ -23,7 +23,7 @@ sleep 0.5
 
 # Lanzar app y mostrar cualquier error en los logs
 echo "=== Iniciando LearnUX ==="
-java -jar /app/app.jar 2>&1
+java -Djava.awt.headless=false -jar /app/app.jar 2>&1
 echo "=== Java termino con codigo: $? ==="
 
 # Mantener el contenedor vivo para que se puedan leer los logs

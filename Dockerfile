@@ -15,6 +15,15 @@ RUN apt-get update && apt-get install -y \
         websockify \
         fluxbox \
         fonts-dejavu-core \
+        libx11-6 \
+        libxext6 \
+        libxrender1 \
+        libxtst6 \
+        libxi6 \
+        libxrandr2 \
+        libxinerama1 \
+        libxcursor1 \
+        libxfixes3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
