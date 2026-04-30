@@ -24,11 +24,18 @@ public class DatabaseConnection {
         if (dbEnv != null) {
             try {
                 java.net.URI uri  = new java.net.URI(dbEnv);
-                String[] creds   = uri.getUserInfo().split(":");
+                String[] creds   = uri.getUserInfo().split(":", 2);
                 int port          = uri.getPort() == -1 ? 5432 : uri.getPort();
-                url      = "jdbc:postgresql://" + uri.getHost() + ":" + port + uri.getPath();
+                String query     = uri.getRawQuery();
+                String host      = uri.getHost();
+                boolean esRemoto = host != null && !host.equals("localhost") && !host.equals("127.0.0.1");
+                if ((query == null || query.isEmpty()) && esRemoto) {
+                    query = "sslmode=require";
+                }
+                url      = "jdbc:postgresql://" + host + ":" + port + uri.getPath()
+                         + (query != null && !query.isEmpty() ? "?" + query : "");
                 user     = creds[0];
-                password = creds[1];
+                password = creds.length > 1 ? creds[1] : "";
             } catch (Exception e) {
                 System.err.println("DATABASE_URL inválida: " + e.getMessage());
             }

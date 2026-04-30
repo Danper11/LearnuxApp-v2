@@ -21,14 +21,21 @@ public class LoginPanel extends JPanel {
     private static final Color GREEN    = UiUtil.GREEN;
     private static final Color PINK     = UiUtil.RED;
 
-    // ── Matrix ────────────────────────────────────────────────────
+    // ── Matrix (estilo cmatrix) ──────────────────────────────────
     private static final String CHARS =
-        "01アイウエカキクコサシスタチツテトナニヌネノハヒフヘホ∑∆Ω≡λ╔╗╚╝║═<>/[]{}#$%";
+        "01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン" +
+        "ｦｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ" +
+        "∑∆Ω≡λ╔╗╚╝║═<>/[]{}#$%&*+=?!@";
     private static final int CELL = 22;
+    private static final Color MATRIX_HEAD  = new Color(230, 245, 255);
+    private static final Color MATRIX_BRIGHT= new Color(120, 180, 255);
+    private static final Color MATRIX_BASE  = new Color(60,  120, 220);
+    private static final Color MATRIX_DIM   = new Color(15,   35,  90);
     private int    cols, rows;
-    private int[]  heads, tailLen;
+    private int[]  heads, tailLen, speedDen, speedCnt;
     private char[][] grid;
     private final Random rng = new Random();
+    private int frame = 0;
 
     // ── Form refs ────────────────────────────────────────────────
     private final JTextField       txtNombre;
@@ -215,8 +222,8 @@ public class LoginPanel extends JPanel {
             registroMode[0] = true; syncUI.run(); txtNombre.requestFocus();
         });
 
-        // ── Animación matrix ─────────────────────────────────────
-        new Timer(100, e -> { tick(); repaint(); }).start();
+        // ── Animación matrix (≈25 fps) ───────────────────────────
+        new Timer(40, e -> { tick(); repaint(); }).start();
 
         btnAccion.addActionListener(e -> manejarAccion());
         txtNombre.addActionListener(e -> manejarAccion());
@@ -262,43 +269,88 @@ public class LoginPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                             RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setFont(new Font("Monospaced", Font.BOLD, 13));
-        int ascent = g2.getFontMetrics().getAscent();
+        Font fontBold   = new Font("Monospaced", Font.BOLD,  19);
+        Font fontPlain  = new Font("Monospaced", Font.PLAIN, 19);
+        int ascent = g2.getFontMetrics(fontBold).getAscent();
 
         for (int c = 0; c < cols; c++) {
             int head = heads[c], tail = tailLen[c];
             for (int r = Math.max(0, head - tail); r <= head && r < rows; r++) {
                 int d = head - r;
-                Color col = d == 0 ? new Color(230, 245, 255) :
-                            d == 1 ? ACCENT :
-                            d <= 3 ? new Color(70, 115, 195) :
-                            d <= 6 ? new Color(32,  60, 120) :
-                                     new Color(15,  28,  65);
+                Color col;
+                Font  fnt;
+                if (d == 0) {
+                    col = MATRIX_HEAD;
+                    fnt = fontBold;
+                } else if (d == 1) {
+                    col = MATRIX_BRIGHT;
+                    fnt = fontBold;
+                } else {
+                    // Estela verde con desvanecimiento suave
+                    float t = (float)(d - 1) / Math.max(1, tail - 1);  // 0 = recién dejado, 1 = final
+                    if (t > 1f) t = 1f;
+                    col = lerp(MATRIX_BASE, MATRIX_DIM, t);
+                    if (d > tail - 4) {
+                        // alpha en los últimos 4 caracteres para fundido a negro
+                        int alpha = Math.max(0, 255 - (d - (tail - 4)) * 64);
+                        col = new Color(col.getRed(), col.getGreen(), col.getBlue(), alpha);
+                    }
+                    fnt = fontPlain;
+                }
                 g2.setColor(col);
+                g2.setFont(fnt);
                 g2.drawString(String.valueOf(grid[c][r]), c * CELL, r * CELL + ascent);
             }
         }
         g2.dispose();
     }
 
+    private static Color lerp(Color a, Color b, float t) {
+        int r = (int)(a.getRed()   + (b.getRed()   - a.getRed())   * t);
+        int g = (int)(a.getGreen() + (b.getGreen() - a.getGreen()) * t);
+        int bl= (int)(a.getBlue()  + (b.getBlue()  - a.getBlue())  * t);
+        return new Color(clamp(r), clamp(g), clamp(bl));
+    }
+    private static int clamp(int v) { return Math.max(0, Math.min(255, v)); }
+
     private void init(int nC, int nR) {
         cols = nC; rows = nR;
-        heads = new int[cols]; tailLen = new int[cols]; grid = new char[cols][rows];
+        heads    = new int[cols];
+        tailLen  = new int[cols];
+        speedDen = new int[cols];
+        speedCnt = new int[cols];
+        grid     = new char[cols][rows];
         for (int c = 0; c < cols; c++) {
-            heads[c]   = -rng.nextInt(rows);
-            tailLen[c] = 8 + rng.nextInt(16);
+            heads[c]   = -rng.nextInt(rows * 2);
+            tailLen[c] = 10 + rng.nextInt(22);
+            speedDen[c] = 1 + rng.nextInt(3);     // 1=rápida, 2=media, 3=lenta
+            speedCnt[c] = rng.nextInt(speedDen[c]);
             for (int r = 0; r < rows; r++) grid[c][r] = randomChar();
         }
     }
 
     private void tick() {
         if (cols == 0) return;
+        frame++;
         for (int c = 0; c < cols; c++) {
-            if (rng.nextInt(6) == 0) grid[c][rng.nextInt(rows)] = randomChar();
-            heads[c]++;
-            if (heads[c] - tailLen[c] > rows) {
-                heads[c]   = -rng.nextInt(rows / 3 + 1);
-                tailLen[c] = 8 + rng.nextInt(16);
+            // Mutación frecuente de glifos para sensación "viva"
+            if (rng.nextInt(3) == 0) {
+                int rr = rng.nextInt(rows);
+                grid[c][rr] = randomChar();
+            }
+            // Avance según velocidad propia de la columna
+            if (++speedCnt[c] >= speedDen[c]) {
+                speedCnt[c] = 0;
+                heads[c]++;
+                // Renovar el glifo nuevo en la cabeza
+                if (heads[c] >= 0 && heads[c] < rows) {
+                    grid[c][heads[c]] = randomChar();
+                }
+                if (heads[c] - tailLen[c] > rows) {
+                    heads[c]    = -rng.nextInt(rows / 2 + 1);
+                    tailLen[c]  = 10 + rng.nextInt(22);
+                    speedDen[c] = 1 + rng.nextInt(3);
+                }
             }
         }
     }
@@ -316,9 +368,7 @@ public class LoginPanel extends JPanel {
             String msg;
             if (!registroMode[0]) {
                 res = usuarioService.entrar(nombre, password);
-                msg = res.primerPassword
-                    ? "✔ Contraseña creada. ¡Bienvenido, " + res.usuario.getNombreUsuario() + "!"
-                    : "✔ Bienvenido de vuelta, " + res.usuario.getNombreUsuario() + "!";
+                msg = "✔ Bienvenido de vuelta, " + res.usuario.getNombreUsuario() + "!";
             } else {
                 String confirm = new String(txtConfirm.getPassword());
                 if (!password.equals(confirm)) {
