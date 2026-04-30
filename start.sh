@@ -34,28 +34,54 @@ if [ -n "$DATABASE_URL" ]; then
         "ALTER TABLE learnux.usuarios ADD COLUMN IF NOT EXISTS password_hash TEXT;" 2>&1
 fi
 
-# Pantalla virtual
-Xvfb :1 -screen 0 1360x840x24 -ac -noreset &
-export DISPLAY=:1
-sleep 2
+# ── Pantalla virtual con espera explícita ──────────────────
+# Resolución reducida a 1280x720x16 para usar menos RAM en plan free.
+start_xvfb() {
+    Xvfb :1 -screen 0 1280x720x16 -ac -noreset >/tmp/xvfb.log 2>&1 &
+    XVFB_PID=$!
+    export DISPLAY=:1
+    # Espera hasta que el socket X11 exista (máx 15s)
+    for i in $(seq 1 30); do
+        if [ -S /tmp/.X11-unix/X1 ]; then
+            echo "=== Xvfb listo (PID $XVFB_PID) ==="
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "=== ERROR: Xvfb no respondió en 15s ==="
+    echo "--- xvfb.log ---"
+    cat /tmp/xvfb.log
+    return 1
+}
+
+# Asegura Xvfb arriba antes de seguir
+until start_xvfb; do
+    echo "=== Reintentando Xvfb en 5s ==="
+    sleep 5
+done
 
 # Gestor de ventanas
-fluxbox &
+fluxbox >/dev/null 2>&1 &
 sleep 0.5
 
 # Servidor VNC
-x11vnc -display :1 -nopw -listen localhost -rfbport 5900 -forever -quiet &
+x11vnc -display :1 -nopw -listen localhost -rfbport 5900 -forever -quiet >/tmp/x11vnc.log 2>&1 &
 sleep 0.5
 
 # noVNC
 PORT=${PORT:-8080}
-websockify --web=/usr/share/novnc/ --wrap-mode=ignore "$PORT" localhost:5900 &
+websockify --web=/usr/share/novnc/ --wrap-mode=ignore "$PORT" localhost:5900 >/tmp/websockify.log 2>&1 &
 sleep 0.5
 
-# Lanzar app — se reinicia automáticamente si se cierra
+# Lanzar app — se reinicia automáticamente si se cierra.
+# Antes de relanzar, verifica que Xvfb siga vivo; si murió, lo resucita.
 echo "=== Iniciando LearnUX ==="
 while true; do
+    if ! kill -0 "$XVFB_PID" 2>/dev/null; then
+        echo "=== Xvfb murió, relanzando ==="
+        start_xvfb || { sleep 5; continue; }
+    fi
     java -Djava.awt.headless=false -jar /app/app.jar 2>&1
-    echo "=== Java termino con codigo: $? — reiniciando en 3s ==="
-    sleep 3
+    echo "=== Java termino con codigo: $? — reiniciando en 5s ==="
+    sleep 5
 done
