@@ -20,6 +20,7 @@ public class UiUtil {
     public static final Color RED      = new Color(243, 139, 168);
     public static final Color PINK     = new Color(245, 194, 231);
     public static final Color MAUVE    = new Color(203, 166, 247);
+    public static final Color ORANGE   = new Color(250, 179, 135);
 
     // ── Fuentes Pro (Más grandes para legibilidad) ──────────────
     public static final Font FONT_TITLE = new Font("Monospaced", Font.BOLD, 32);
