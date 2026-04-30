@@ -95,8 +95,6 @@ public class PrincipalPanel extends JPanel {
         tabs.addTab("  📊 Mi Progreso  ", progresoPanel);
         nivelesPanel = new NivelesPanel(usuario);
         tabs.addTab("  🎮 Niveles  ", nivelesPanel);
-        EvaluacionPanel evaluacion = new EvaluacionPanel(nivelRec -> tabs.setSelectedIndex(3));
-        tabs.addTab("  📝 Diagnóstico  ", evaluacion);
 
         tabs.addChangeListener(e -> {
             int idx = tabs.getSelectedIndex();

@@ -222,8 +222,8 @@ public class LoginPanel extends JPanel {
             registroMode[0] = true; syncUI.run(); txtNombre.requestFocus();
         });
 
-        // ── Animación matrix (≈25 fps) ───────────────────────────
-        new Timer(40, e -> { tick(); repaint(); }).start();
+        // ── Animación matrix (≈14 fps — equilibrio entre suave y ligero para noVNC) ──
+        new Timer(70, e -> { tick(); repaint(); }).start();
 
         btnAccion.addActionListener(e -> manejarAccion());
         txtNombre.addActionListener(e -> manejarAccion());
