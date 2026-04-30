@@ -60,7 +60,16 @@ until start_xvfb; do
     sleep 5
 done
 
-# Gestor de ventanas
+# Gestor de ventanas — oculta toolbar/slit que tapaban botones del juego
+mkdir -p /root/.fluxbox
+cat > /root/.fluxbox/init <<'FBEOF'
+session.screen0.toolbar.visible: false
+session.screen0.toolbar.autoHide: true
+session.screen0.slit.autoHide: true
+session.screen0.slit.maxOver: false
+session.screen0.allowRemoteActions: false
+session.screen0.fullMaximization: true
+FBEOF
 fluxbox >/dev/null 2>&1 &
 sleep 0.5
 
