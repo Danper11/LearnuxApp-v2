@@ -19,8 +19,17 @@ public class MainFrame extends JFrame {
     public MainFrame() {
         setTitle("🐧 LearnUX — Aprende Linux");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1360, 840);
-        setMinimumSize(new Dimension(1100, 680));
+        // Tamaño preferido pero recortado al de la pantalla real (importante en Xvfb/noVNC)
+        Dimension scr;
+        try {
+            scr = Toolkit.getDefaultToolkit().getScreenSize();
+        } catch (Exception ex) {
+            scr = new Dimension(1280, 720);
+        }
+        int w = Math.min(1360, scr.width);
+        int h = Math.min(840,  scr.height);
+        setSize(w, h);
+        setMinimumSize(new Dimension(Math.min(1100, scr.width), Math.min(680, scr.height)));
         setLocationRelativeTo(null);
 
         cardLayout = new CardLayout();

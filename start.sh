@@ -37,7 +37,7 @@ fi
 # ── Pantalla virtual con espera explícita ──────────────────
 # Resolución reducida a 1280x720x16 para usar menos RAM en plan free.
 start_xvfb() {
-    Xvfb :1 -screen 0 1280x720x16 -ac -noreset >/tmp/xvfb.log 2>&1 &
+    Xvfb :1 -screen 0 1366x768x16 -ac -noreset >/tmp/xvfb.log 2>&1 &
     XVFB_PID=$!
     export DISPLAY=:1
     # Espera hasta que el socket X11 exista (máx 15s)
