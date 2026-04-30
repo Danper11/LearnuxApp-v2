@@ -11,7 +11,7 @@ import java.util.List;
  */
 public class ResumenDao {
 
-    // ── Fila de detalle ──────────────────────────────────────────
+
     public static class FilaProgreso {
         public String  comando;
         public String  dificultad;
@@ -29,7 +29,6 @@ public class ResumenDao {
         }
     }
 
-    // ── Totales generales ────────────────────────────────────────
     public static class Resumen {
         public int    totalPracticados;
         public int    totalDominados;
@@ -42,10 +41,7 @@ public class ResumenDao {
         }
     }
 
-    /**
-     * Detalle de cada comando practicado por el usuario.
-     * Llama a f_resumen_progreso(p_id_usuario).
-     */
+
     public List<FilaProgreso> getDetalle(int idUsuario) {
         List<FilaProgreso> lista = new ArrayList<>();
         String sql = "SELECT ret_comando, ret_dificultad, ret_dominado, " +
@@ -79,9 +75,7 @@ public class ResumenDao {
         return lista;
     }
 
-    /**
-     * Totales generales del usuario desde vista_resumen_progreso.
-     */
+
     public Resumen getResumen(String nombreUsuario) {
         String sql = "SELECT total_practicados, total_dominados, ultima_actividad " +
                      "FROM learnux.vista_resumen_progreso " +

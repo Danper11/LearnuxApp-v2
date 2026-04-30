@@ -17,13 +17,7 @@ public class ProgresoService {
     private final ProgresoDao progresoDao = new ProgresoDao();
     private final ResumenDao  resumenDao  = new ResumenDao();
 
-    /**
-     * Registra que un usuario practicó un comando.
-     * El procedure en la BD se encarga del upsert y la transacción.
-     *
-     * @throws ServiceException si los ids no son válidos o falla la BD
-     */
-    /** Marca el nivel boss como completado y desbloquea el siguiente tier. */
+
     public void completarNivelBoss(int idUsuario, int idNivel) {
         progresoDao.completarNivelBoss(idUsuario, idNivel);
     }
@@ -40,10 +34,7 @@ public class ProgresoService {
         }
     }
 
-    /**
-     * Devuelve las estadísticas globales del usuario (tarjetas de resumen).
-     * Nunca retorna null; en caso de error devuelve un Resumen vacío.
-     */
+
     public Resumen getResumen(String nombreUsuario) {
         try {
             return resumenDao.getResumen(nombreUsuario);
@@ -53,10 +44,6 @@ public class ProgresoService {
         }
     }
 
-    /**
-     * Devuelve el detalle de cada comando practicado por el usuario.
-     * Nunca retorna null.
-     */
     public List<FilaProgreso> getDetalle(int idUsuario) {
         try {
             return resumenDao.getDetalle(idUsuario);

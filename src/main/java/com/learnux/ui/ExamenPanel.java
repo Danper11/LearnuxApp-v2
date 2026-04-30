@@ -17,15 +17,15 @@ import java.util.List;
  */
 public class ExamenPanel extends JPanel {
 
-    private static final Color BG      = new Color(30,  30,  46);
-    private static final Color BG_CARD = new Color(49,  50,  68);
-    private static final Color BG_HDR  = new Color(24,  24,  37);
-    private static final Color TEXT    = new Color(205, 214, 244);
-    private static final Color SUB     = new Color(108, 112, 134);
-    private static final Color ACCENT  = new Color(137, 180, 250);
-    private static final Color GREEN   = new Color(166, 227, 161);
-    private static final Color YELLOW  = new Color(249, 226, 175);
-    private static final Color PINK    = new Color(243, 139, 168);
+    private static final Color BG      = UiUtil.BG_DARK;
+    private static final Color BG_CARD = UiUtil.BG_CARD;
+    private static final Color BG_HDR  = UiUtil.BG_HDR;
+    private static final Color TEXT    = UiUtil.TEXT;
+    private static final Color SUB     = UiUtil.OVERLAY;
+    private static final Color ACCENT  = UiUtil.BLUE;
+    private static final Color GREEN   = UiUtil.GREEN;
+    private static final Color YELLOW  = UiUtil.YELLOW;
+    private static final Color PINK    = UiUtil.RED;
 
     // Niveles de los que se extrae 1 ejercicio cada uno
     private static final int[] NIVELES_EXAMEN = {1, 4, 7, 11, 15};

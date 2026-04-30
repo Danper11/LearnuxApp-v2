@@ -22,12 +22,16 @@ There are no tests. The `src/test/` directory exists but is empty.
 
 - PostgreSQL on `localhost:5432`, database `learnux_db`, schema `learnux`
 - Connection resolution order: `DATABASE_URL` env var (Railway/Render format) → `src/main/resources/learnux.properties` → hardcoded defaults (`postgres`/`danper.exe`)
-- To reset or seed: `psql -U postgres learnux_db < learnux_dump.sql`
+- To reset or seed: `psql -U postgres learnux_db < learnux_dump.sql` — this is the canonical schema + data
 - Additional data: `ejercicios_adicionales.sql`, `enriquecer_flags.sql`
+- Historical one-off scripts (already merged into the dump, do not re-run blindly): `REPAIR_*.sql`, `ENRICH_*.sql`, `MASTER_REPAIR.sql`, `FORCE_FIX_ARC.sql`, `ENCYCLOPEDIA_EXPANSION.sql`, `add_drag_drop_tier1_2.sql`
 - Heavy business logic lives in PostgreSQL stored functions/procedures — check the dump before reimplementing in Java:
-  - `f_buscar_usuario`, `f_get_comandos_de_nivel`, `f_get_ejercicios_nivel` — query functions
+  - `f_buscar_usuario`, `f_get_comandos_de_nivel`, `f_get_ejercicios_nivel`, `f_get_opciones_comando` — query functions
+  - `f_resumen_progreso(id_usuario)` — returns per-command practice detail used by `ResumenDao.getDetalle()`
+  - `vista_resumen_progreso` — DB view with aggregate totals used by `ResumenDao.getResumen()`
   - `sp_registrar_usuario`, `sp_registrar_intento`, `sp_actualizar_progreso` — stored procedures
   - `fn_avanzar_nivel_usuario` — DB trigger that unlocks the next level after boss completion
+- Table naming: the stored function `f_buscar_usuario` abstracts over the table; direct password queries hit `learnux.usuarios` (plural). The local migration note below uses `learnux.usuario` (singular) — both forms exist in the schema.
 
 ## Architecture
 
@@ -48,12 +52,14 @@ UI (Swing panels)  →  Service layer  →  DAO layer  →  PostgreSQL
 `MainFrame` owns a `CardLayout` and controls all screen transitions:
 
 ```
-IntroPanel → LoginPanel → PrincipalPanel (5-tab JTabbedPane)
+IntroPanel → LoginPanel → PrincipalPanel (4-tab JTabbedPane)
                                 ↓
                          NivelesPanel → EjercicioPanel
                                 ↓
                 ExamenPanel / JefeFinalPanel (Boss Fight)
 ```
+
+On first login (`esNuevo=true`), `MainFrame.mostrarPanelPrincipal` shows two modal fullscreen dialogs in sequence: `TutorialBienvenidaDialog` (5-page intro) then `DiagnosticoDialog` (5-question level assessment with a single profile message at the end). Both are one-time and not reachable from the tabs.
 
 Key `MainFrame` methods:
 - `mostrarLogin()` — also calls `NivelService.resetRepetidos()` to clear anti-repetition state
@@ -61,7 +67,7 @@ Key `MainFrame` methods:
 - `mostrarEjercicioPanel(JPanel)` — removes the previous ejercicio panel before adding the new one
 - `mostrarExamenPanel(Usuario)`, `volverAPrincipal()`
 
-`PrincipalPanel` contains 5 tabs: Noticias, Explorar (command browser with `JSplitPane` + live search via `BuscadorDao`), Progreso, Niveles, Evaluación.
+`PrincipalPanel` contains 4 tabs: Noticias, Explorar (command browser with `JSplitPane` + live search via `BuscadorDao`), Progreso, Niveles.
 
 ## Exercise & Level Systems
 
@@ -100,15 +106,15 @@ Other `UiUtil` helpers:
 - `parseJsonArray(String)` / `parseJsonObjeto(String)` — hand-rolled JSON parsers (no external libs)
 - `marcarError(JPanel)` — briefly flashes a panel red to indicate a wrong answer
 
-**Warning:** `ExamenPanel` and `JefeFinalPanel` currently use locally defined color constants. When modifying these, prefer refactoring them to use `UiUtil` for consistency.
+All panels now alias their local color names to `UiUtil` constants (e.g. `private static final Color ACCENT = UiUtil.BLUE;`). The local names are kept for readability inside each panel; if you add a new panel, follow the same pattern instead of hardcoding `new Color(r,g,b)`.
 
 ## Authentication
 
 Passwords use **PBKDF2-HMAC-SHA256** (120k iterations, random 16-byte salt per user), stored as `"iterations:salt:hash"` in `learnux.usuario.password_hash`. No external libraries — pure Java 21 (`javax.crypto`).
 
 - `PasswordUtil` — hashing and constant-time verification
-- `UsuarioService.entrar(nombre, password)` — if `password_hash` is null (existing account), sets the password on first login
-- `UsuarioService.registrar(nombre, password)` — creates account and hashes password immediately
+- `UsuarioService.entrar(nombre, password)` — verifies password against stored hash; rejects if hash is missing or incorrect
+- `UsuarioService.registrar(nombre, password)` — creates account, hashes password immediately, returns `LoginResultado` with `esNuevo=true`
 - `LoginPanel` shows a confirm field only in register mode
 
 **Local DB migration** (run once if the column doesn't exist yet):

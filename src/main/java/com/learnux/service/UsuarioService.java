@@ -9,17 +9,15 @@ public class UsuarioService {
 
     public static class LoginResultado {
         public final Usuario usuario;
-        public final boolean esNuevo;        // true = cuenta recién creada
-        public final boolean primerPassword; // true = primera vez usando contraseña
+        public final boolean esNuevo;
 
-        public LoginResultado(Usuario usuario, boolean esNuevo, boolean primerPassword) {
-            this.usuario        = usuario;
-            this.esNuevo        = esNuevo;
-            this.primerPassword = primerPassword;
+        public LoginResultado(Usuario usuario, boolean esNuevo) {
+            this.usuario = usuario;
+            this.esNuevo = esNuevo;
         }
     }
 
-    /** Inicia sesión verificando contraseña. Si el usuario no tiene contraseña aún, la establece. */
+    /** Inicia sesión verificando contraseña. */
     public LoginResultado entrar(String nombre, String password) throws ServiceException {
         String n = validarNombre(nombre);
         validarPassword(password);
@@ -29,15 +27,10 @@ public class UsuarioService {
             throw new ServiceException("Usuario \"" + n + "\" no encontrado. ¿Aún no tienes cuenta? Usa «Registrarse».");
 
         String hash = usuarioDao.getPasswordHash(usuario.getIdUsuario());
-        if (hash == null) {
-            // Cuenta existente sin contraseña: la establece ahora
-            usuarioDao.setPasswordHash(usuario.getIdUsuario(), PasswordUtil.hash(password));
-            return new LoginResultado(usuario, false, true);
-        }
-        if (!PasswordUtil.verify(password, hash))
+        if (hash == null || !PasswordUtil.verify(password, hash))
             throw new ServiceException("Contraseña incorrecta.");
 
-        return new LoginResultado(usuario, false, false);
+        return new LoginResultado(usuario, false);
     }
 
     /** Crea una cuenta nueva con contraseña. */
@@ -55,7 +48,7 @@ public class UsuarioService {
             throw new ServiceException("Error inesperado al recuperar el usuario.");
 
         usuarioDao.setPasswordHash(usuario.getIdUsuario(), PasswordUtil.hash(password));
-        return new LoginResultado(usuario, true, false);
+        return new LoginResultado(usuario, true);
     }
 
     private String validarNombre(String nombre) throws ServiceException {

@@ -10,9 +10,7 @@ import java.util.List;
 
 public class OpcionComandoDao {
 
-    /**
-     * Devuelve las banderas/opciones de un comando usando f_get_opciones_comando.
-     */
+
     public List<OpcionComando> getOpcionesPorComando(int idComando) {
         List<OpcionComando> lista = new ArrayList<>();
         String sql = "SELECT ret_id_opcion, ret_id_comando, ret_bandera, "

@@ -6,16 +6,16 @@ import java.awt.*;
 
 public class NoticiasPanel extends JPanel {
 
-    private static final Color BG      = new Color(30,  30,  46);
-    private static final Color BG_CARD = new Color(49,  50,  68);
-    private static final Color BG_HDR  = new Color(24,  24,  37);
-    private static final Color TEXT    = new Color(205, 214, 244);
-    private static final Color SUB     = new Color(108, 112, 134);
-    private static final Color ACCENT  = new Color(137, 180, 250);
-    private static final Color GREEN   = new Color(166, 227, 161);
-    private static final Color YELLOW  = new Color(249, 226, 175);
-    private static final Color PURPLE  = new Color(203, 166, 247);
-    private static final Color PINK    = new Color(243, 139, 168);
+    private static final Color BG      = UiUtil.BG_DARK;
+    private static final Color BG_CARD = UiUtil.BG_CARD;
+    private static final Color BG_HDR  = UiUtil.BG_HDR;
+    private static final Color TEXT    = UiUtil.TEXT;
+    private static final Color SUB     = UiUtil.OVERLAY;
+    private static final Color ACCENT  = UiUtil.BLUE;
+    private static final Color GREEN   = UiUtil.GREEN;
+    private static final Color YELLOW  = UiUtil.YELLOW;
+    private static final Color PURPLE  = UiUtil.MAUVE;
+    private static final Color PINK    = UiUtil.RED;
 
     public NoticiasPanel() {
         setLayout(new BorderLayout());
@@ -80,7 +80,7 @@ public class NoticiasPanel extends JPanel {
                 "20 niveles con progresión completa y sistema de puntos",
                 "10 Abr 2026",
                 GREEN,
-                "LearnUX cuenta con 20 niveles organizados en 4 tiers: Fundamentos (1-5), "
+                "LearnUX cuenta con 24 niveles organizados en 4 tiers: Fundamentos (1-5), "
                 + "Intermedio (6-10), Avanzado (11-15) y Maestro (16-20). Cada nivel otorga puntos "
                 + "de recompensa y desbloquea el siguiente al completarse."
             },

@@ -30,8 +30,6 @@ public class NivelesPanel extends JPanel {
     private       JPanel       contenido;
 
     private final List<JPanel>       glowCards   = new ArrayList<>();
-    private final List<JProgressBar> animBars    = new ArrayList<>();
-    private final List<Integer>      animTargets = new ArrayList<>();
     private       javax.swing.Timer  glowTimer;
     private       boolean            glowBright  = true;
 
@@ -80,8 +78,6 @@ public class NivelesPanel extends JPanel {
         List<Nivel> niveles = nivelService.getNivelesConProgreso(usuario.getIdUsuario());
         contenido.removeAll();
         glowCards.clear();
-        animBars.clear();
-        animTargets.clear();
         if (glowTimer != null) { glowTimer.stop(); glowTimer = null; }
 
 record TierDef(String icon, String label, int from, int to, Color color) {}
@@ -128,23 +124,6 @@ record TierDef(String icon, String label, int from, int to, Color color) {}
             glowTimer.start();
         }
 
-        // Animate progress bars from 0 → target in ~320 ms
-        if (!animBars.isEmpty()) {
-            int[] tick = {0};
-            javax.swing.Timer barAnim = new javax.swing.Timer(50, null);
-            barAnim.addActionListener(e -> {
-                tick[0]++;
-                boolean allDone = true;
-                for (int i = 0; i < animBars.size(); i++) {
-                    int target = animTargets.get(i);
-                    int val = (int) Math.min(target * tick[0] / 20.0, target);
-                    animBars.get(i).setValue(val);
-                    if (val < target) allDone = false;
-                }
-                if (allDone || tick[0] > 25) ((javax.swing.Timer) e.getSource()).stop();
-            });
-            barAnim.start();
-        }
     }
 
     private JPanel tierHeader(String icon, String label, int from, int to, Color color) {
@@ -199,12 +178,9 @@ record TierDef(String icon, String label, int from, int to, Color color) {}
         lblDif.setFont(new Font("Monospaced", Font.PLAIN, 10));
         lblDif.setForeground(SUB);
 
-        int pct = nivel.getPuntosAcumulados();
-        JProgressBar barra = new JProgressBar(0, nivel.getPuntosParaPasar() > 0 ? nivel.getPuntosParaPasar() : 100);
-        int barTarget = Math.min(pct, barra.getMaximum());
-        barra.setValue(0);
-        animBars.add(barra);
-        animTargets.add(barTarget);
+        // Barra binaria: llena si el nivel está completado, vacía si no.
+        JProgressBar barra = new JProgressBar(0, 1);
+        barra.setValue(completado ? 1 : 0);
         barra.setStringPainted(false);
         barra.setBackground(BG_HDR);
         barra.setForeground(completado ? GREEN : ACCENT);

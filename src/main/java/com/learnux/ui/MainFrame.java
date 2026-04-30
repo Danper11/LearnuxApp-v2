@@ -14,6 +14,7 @@ public class MainFrame extends JFrame {
     private final JPanel contenedor;
     private final CardLayout cardLayout;
     private JPanel ejercicioActual;
+    private JPanel principalActual;
 
     public MainFrame() {
         setTitle("🐧 LearnUX — Aprende Linux");
@@ -69,7 +70,9 @@ public class MainFrame extends JFrame {
     }
 
     public void mostrarPanelPrincipal(Usuario usuario, boolean esNuevo) {
+        if (principalActual != null) contenedor.remove(principalActual);
         PrincipalPanel principal = new PrincipalPanel(usuario);
+        principalActual = principal;
         contenedor.add(principal, "PRINCIPAL");
         cardLayout.show(contenedor, "PRINCIPAL");
 
@@ -97,8 +100,10 @@ public class MainFrame extends JFrame {
                 layered.remove(overlay);
                 layered.repaint();
                 if (esNuevo) {
-                    TutorialBienvenidaDialog dlg = new TutorialBienvenidaDialog(MainFrame.this);
-                    dlg.setVisible(true);
+                    TutorialBienvenidaDialog tut = new TutorialBienvenidaDialog(MainFrame.this);
+                    tut.setVisible(true);
+                    DiagnosticoDialog diag = new DiagnosticoDialog(MainFrame.this);
+                    diag.setVisible(true);
                 }
             } else {
                 overlay.repaint();

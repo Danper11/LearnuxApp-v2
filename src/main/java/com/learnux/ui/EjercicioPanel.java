@@ -142,6 +142,9 @@ public class EjercicioPanel extends JPanel {
     private int    vidas    = 3;
     private JLabel lblVidas;
 
+    // ── Fallos en el ejercicio actual (para auto-pista) ───────────
+    private int    fallosEjercicio = 0;
+
     // ── Transición fade ───────────────────────────────────────────
     private float  fadeAlpha = 0f;
 
@@ -470,6 +473,7 @@ public class EjercicioPanel extends JPanel {
 
         Ejercicio ej = ejercicios.get(indice);
         respuestaSeleccionada = null;
+        fallosEjercicio = 0;
         lblFeedback.setText(" ");
         lblProgreso.setText((indice + 1) + " / " + ejercicios.size());
         lblPregunta.setText("<html><body style='width:580px'>" + ej.getPregunta() + "</body></html>");
@@ -514,6 +518,8 @@ public class EjercicioPanel extends JPanel {
     // ── DRAG_DROP simple ─────────────────────────────────────────
 
     private void construirDragDrop(List<String> opciones) {
+        opciones = new ArrayList<>(opciones);
+        Collections.shuffle(opciones);
         panelRespuesta.setLayout(new BorderLayout(0, 14));
 
         JPanel dropZone = new JPanel(new BorderLayout());
@@ -1147,7 +1153,9 @@ public class EjercicioPanel extends JPanel {
     private void construirOpciones(List<String> opciones) {
         panelRespuesta.setLayout(new GridLayout(0, 1, 0, 8));
         ButtonGroup grupo = new ButtonGroup();
-        for (String op : opciones) {
+        List<String> mezcladas = new ArrayList<>(opciones);
+        Collections.shuffle(mezcladas);
+        for (String op : mezcladas) {
             JToggleButton btn = new JToggleButton(op);
             btn.setFont(new Font("Monospaced", Font.PLAIN, 16));
             btn.setBackground(BG_CARD);
@@ -1192,13 +1200,15 @@ public class EjercicioPanel extends JPanel {
 
     private void construirCombo(List<String> opciones) {
         panelRespuesta.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        JComboBox<String> combo = new JComboBox<>(opciones.toArray(new String[0]));
+        List<String> mezcladas = new ArrayList<>(opciones);
+        Collections.shuffle(mezcladas);
+        JComboBox<String> combo = new JComboBox<>(mezcladas.toArray(new String[0]));
         combo.setFont(new Font("Monospaced", Font.PLAIN, 17));
         combo.setBackground(BG_CARD);
         combo.setForeground(TEXT);
         combo.setPreferredSize(new Dimension(340, 38));
         combo.addActionListener(e -> respuestaSeleccionada = (String) combo.getSelectedItem());
-        respuestaSeleccionada = opciones.isEmpty() ? null : opciones.get(0);
+        respuestaSeleccionada = mezcladas.isEmpty() ? null : mezcladas.get(0);
         panelRespuesta.add(combo);
     }
 
@@ -1351,6 +1361,7 @@ public class EjercicioPanel extends JPanel {
         } else {
             racha = 0;
             vidas--;
+            fallosEjercicio++;
             actualizarVidas();
             SoundPlayer.playWrong();
             shakeComponent(panelRespuesta);
@@ -1364,6 +1375,9 @@ public class EjercicioPanel extends JPanel {
                 });
                 delay.setRepeats(false);
                 delay.start();
+            } else if (fallosEjercicio >= 2 && ej.getPista() != null) {
+                lblFeedback.setForeground(YELLOW);
+                lblFeedback.setText("💡 Pista: " + ej.getPista());
             }
             // btnAccion permanece "Responder" para reintentar
         }
@@ -1479,10 +1493,10 @@ public class EjercicioPanel extends JPanel {
         lblScore.setForeground(TEXT);
         lblScore.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JProgressBar barra = new JProgressBar(0, 100);
+        JProgressBar barra = new JProgressBar(0, total);
         barra.setValue(0);
         barra.setStringPainted(true);
-        barra.setString("  " + pct + "%");
+        barra.setString("  " + aciertos + " / " + total);
         barra.setForeground(paso ? ACCENT : YELLOW);
         barra.setBackground(BG_HDR);
         barra.setBorderPainted(false);
@@ -1492,7 +1506,7 @@ public class EjercicioPanel extends JPanel {
 
         JLabel lblExtra = new JLabel(
             paso ? "+" + nivel.getPuntosRecompensa() + " puntos ganados  ✔"
-                 : "Necesitas " + nivel.getPuntosParaPasar() + "% para superar el nivel");
+                 : "Necesitas completar todos los ejercicios para superar el nivel");
         lblExtra.setFont(new Font("Monospaced", Font.PLAIN, 16));
         lblExtra.setForeground(paso ? ACCENT : PINK);
         lblExtra.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -1547,13 +1561,13 @@ public class EjercicioPanel extends JPanel {
         revalidate();
         repaint();
 
-        // Animación de barra
+        // Animación de barra (de 0 a aciertos)
         int[] frame = {0};
-        javax.swing.Timer anim = new javax.swing.Timer(12, null);
+        javax.swing.Timer anim = new javax.swing.Timer(120, null);
         anim.addActionListener(e -> {
-            frame[0] = Math.min(frame[0] + 2, pct);
+            frame[0] = Math.min(frame[0] + 1, aciertos);
             barra.setValue(frame[0]);
-            if (frame[0] >= pct) ((javax.swing.Timer) e.getSource()).stop();
+            if (frame[0] >= aciertos) ((javax.swing.Timer) e.getSource()).stop();
         });
         anim.start();
 
@@ -1630,10 +1644,12 @@ public class EjercicioPanel extends JPanel {
         removeAll();
         setLayout(new BorderLayout());
 
+        Ejercicio ejFallo = (indice < ejercicios.size()) ? ejercicios.get(indice) : null;
+
         JPanel centro = new JPanel();
         centro.setLayout(new BoxLayout(centro, BoxLayout.Y_AXIS));
         centro.setBackground(BG);
-        centro.setBorder(new EmptyBorder(0, 80, 0, 80));
+        centro.setBorder(new EmptyBorder(30, 80, 20, 80));
 
         JLabel icono = new JLabel("💔", SwingConstants.CENTER);
         icono.setFont(new Font("Monospaced", Font.PLAIN, 64));
@@ -1649,6 +1665,60 @@ public class EjercicioPanel extends JPanel {
         sub.setForeground(SUB);
         sub.setAlignmentX(Component.CENTER_ALIGNMENT);
 
+        centro.add(icono);
+        centro.add(Box.createVerticalStrut(14));
+        centro.add(titulo);
+        centro.add(Box.createVerticalStrut(8));
+        centro.add(sub);
+        centro.add(Box.createVerticalStrut(26));
+
+        // ── Tarjeta con la respuesta correcta + explicación ─────
+        if (ejFallo != null) {
+            JPanel card = new JPanel();
+            card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+            card.setBackground(BG_CARD);
+            card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 4, 0, 0, GREEN),
+                new EmptyBorder(18, 22, 18, 22)));
+            card.setAlignmentX(Component.CENTER_ALIGNMENT);
+            card.setMaximumSize(new Dimension(720, 9999));
+
+            JLabel lblTit = new JLabel("📝  La respuesta correcta era:");
+            lblTit.setFont(new Font("Monospaced", Font.BOLD, 16));
+            lblTit.setForeground(SUB);
+            lblTit.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JLabel lblResp = new JLabel("<html><body>" + ejFallo.getRespuestaCorrecta() + "</body></html>");
+            lblResp.setFont(new Font("Monospaced", Font.BOLD, 22));
+            lblResp.setForeground(GREEN);
+            lblResp.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            card.add(lblTit);
+            card.add(Box.createVerticalStrut(8));
+            card.add(lblResp);
+
+            if (ejFallo.getPista() != null && !ejFallo.getPista().isBlank()) {
+                JLabel lblExpTit = new JLabel("💡  Por qué:");
+                lblExpTit.setFont(new Font("Monospaced", Font.BOLD, 16));
+                lblExpTit.setForeground(SUB);
+                lblExpTit.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                JLabel lblExp = new JLabel("<html><body style='width:660px; line-height:1.5'>"
+                    + ejFallo.getPista() + "</body></html>");
+                lblExp.setFont(new Font("Monospaced", Font.PLAIN, 16));
+                lblExp.setForeground(TEXT);
+                lblExp.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                card.add(Box.createVerticalStrut(14));
+                card.add(lblExpTit);
+                card.add(Box.createVerticalStrut(6));
+                card.add(lblExp);
+            }
+
+            centro.add(card);
+            centro.add(Box.createVerticalStrut(30));
+        }
+
         JButton btnReintentar = boton("↺  Reintentar nivel", PINK);
         btnReintentar.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnReintentar.addActionListener(e -> {
@@ -1656,6 +1726,7 @@ public class EjercicioPanel extends JPanel {
             aciertos = 0;
             vidas    = 3;
             racha    = 0;
+            fallosEjercicio = 0;
             removeAll();
             setLayout(new BorderLayout());
             construirUI();
@@ -1674,17 +1745,17 @@ public class EjercicioPanel extends JPanel {
         botones.add(btnReintentar);
         botones.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        centro.add(Box.createVerticalGlue());
-        centro.add(icono);
-        centro.add(Box.createVerticalStrut(18));
-        centro.add(titulo);
-        centro.add(Box.createVerticalStrut(12));
-        centro.add(sub);
-        centro.add(Box.createVerticalStrut(36));
         centro.add(botones);
         centro.add(Box.createVerticalGlue());
 
-        add(centro, BorderLayout.CENTER);
+        JScrollPane scroll = new JScrollPane(centro);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(BG);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(14);
+        UiUtil.estilizarScroll(scroll);
+
+        add(scroll, BorderLayout.CENTER);
         revalidate();
         repaint();
     }

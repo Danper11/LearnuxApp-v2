@@ -14,10 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Lógica de negocio para comandos, categorías y sus opciones.
- * Centraliza validaciones y reglas de presentación.
- */
+
 public class ComandoService {
 
     private final CategoriaDao   categoriaDao   = new CategoriaDao();
@@ -34,10 +31,7 @@ public class ComandoService {
         }
     }
 
-    /**
-     * Devuelve todas las categorías disponibles.
-     * Retorna lista vacía en lugar de null ante cualquier fallo.
-     */
+
     public List<Categoria> getCategorias() {
         try {
             return categoriaDao.getAllCategorias();
@@ -47,11 +41,7 @@ public class ComandoService {
         }
     }
 
-    /**
-     * Devuelve los comandos de una categoría específica.
-     *
-     * @throws ServiceException si el id de categoría no es válido
-     */
+
     private static final Map<String, Integer> DIF_ORDER =
         Map.of("principiante", 1, "intermedio", 2, "avanzado", 3);
 
@@ -93,9 +83,7 @@ public class ComandoService {
         }
     }
 
-    /**
-     * Devuelve las banderas/opciones de un comando concreto.
-     */
+
     public List<OpcionComando> getOpciones(int idComando) {
         try {
             return opcionDao.getOpcionesPorComando(idComando);

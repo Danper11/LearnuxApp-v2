@@ -7,11 +7,10 @@ import java.util.Base64;
 
 public class PasswordUtil {
 
-    private static final int    ITERATIONS = 120_000;
-    private static final int    KEY_BITS   = 256;
-    private static final String ALGO       = "PBKDF2WithHmacSHA256";
+    private static final int ITERATIONS = 120_000;
+    private static final int KEY_BITS = 256;
+    private static final String ALGO = "PBKDF2WithHmacSHA256";
 
-    /** Devuelve "iterations:salt:hash" listo para guardar en BD. */
     public static String hash(String password) {
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
@@ -19,15 +18,18 @@ public class PasswordUtil {
         return ITERATIONS + ":" + b64(salt) + ":" + b64(key);
     }
 
-    /** Comparación en tiempo constante para evitar timing attacks. */
     public static boolean verify(String password, String stored) {
         String[] p = stored.split(":");
-        if (p.length != 3) return false;
-        byte[] salt     = Base64.getDecoder().decode(p[1]);
+        if (p.length != 3) {
+            return false;
+        }
+        byte[] salt = Base64.getDecoder().decode(p[1]);
         byte[] expected = Base64.getDecoder().decode(p[2]);
-        byte[] actual   = derive(password.toCharArray(), salt, Integer.parseInt(p[0]), expected.length * 8);
+        byte[] actual = derive(password.toCharArray(), salt, Integer.parseInt(p[0]), expected.length * 8);
         int diff = actual.length ^ expected.length;
-        for (int i = 0; i < Math.min(actual.length, expected.length); i++) diff |= actual[i] ^ expected[i];
+        for (int i = 0; i < Math.min(actual.length, expected.length); i++) {
+            diff |= actual[i] ^ expected[i];
+        }
         return diff == 0;
     }
 
@@ -41,5 +43,7 @@ public class PasswordUtil {
         }
     }
 
-    private static String b64(byte[] data) { return Base64.getEncoder().encodeToString(data); }
+    private static String b64(byte[] data) {
+        return Base64.getEncoder().encodeToString(data);
+    }
 }

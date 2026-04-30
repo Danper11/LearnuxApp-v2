@@ -9,10 +9,7 @@ import java.sql.Types;
 
 public class UsuarioDao {
 
-    /**
-     * Busca un usuario activo por nombre usando la función f_buscar_usuario.
-     * Toda la validación vive en la BD, el DAO solo mapea el resultado.
-     */
+
     public Usuario getUsuarioByNombre(String nombreUsuario) {
         String sql = "SELECT ret_id_usuario, ret_nombre_usuario, ret_fecha_creacion "
                    + "FROM learnux.f_buscar_usuario(?)";
@@ -63,11 +60,7 @@ public class UsuarioDao {
         }
     }
 
-    /**
-     * Registra un usuario nuevo usando el procedure sp_registrar_usuario.
-     * El procedure aplica la transacción, valida longitud mínima y
-     * desbloquea el nivel 1 automáticamente.
-     */
+
     public boolean registrarNuevoUsuario(String nombreUsuario) {
         String sql = "CALL learnux.sp_registrar_usuario(?, ?)";
 

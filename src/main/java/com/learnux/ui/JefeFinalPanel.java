@@ -12,16 +12,16 @@ import java.util.List;
 
 public class JefeFinalPanel extends JPanel {
 
-    private static final Color BG      = new Color(30,  30,  46);
-    private static final Color BG_CARD = new Color(49,  50,  68);
-    private static final Color BG_HDR  = new Color(24,  24,  37);
-    private static final Color TEXT    = new Color(205, 214, 244);
-    private static final Color SUB     = new Color(108, 112, 134);
-    private static final Color ACCENT  = new Color(137, 180, 250);
-    private static final Color GREEN   = new Color(166, 227, 161);
-    private static final Color YELLOW  = new Color(249, 226, 175);
-    private static final Color PINK    = new Color(243, 139, 168);
-    private static final Color ORANGE  = new Color(250, 179, 135);
+    private static final Color BG      = UiUtil.BG_DARK;
+    private static final Color BG_CARD = UiUtil.BG_CARD;
+    private static final Color BG_HDR  = UiUtil.BG_HDR;
+    private static final Color TEXT    = UiUtil.TEXT;
+    private static final Color SUB     = UiUtil.OVERLAY;
+    private static final Color ACCENT  = UiUtil.BLUE;
+    private static final Color GREEN   = UiUtil.GREEN;
+    private static final Color YELLOW  = UiUtil.YELLOW;
+    private static final Color PINK    = UiUtil.RED;
+    private static final Color ORANGE  = UiUtil.ORANGE;
 
     private record BossEj(String pregunta, String respuesta, String[] opciones, String pista) {}
 
@@ -185,6 +185,7 @@ public class JefeFinalPanel extends JPanel {
     private int    indice    = 0;
     private int    aciertos  = 0;
     private int    bossHp    = 100;
+    private int    fallosBoss = 0;
     private String respuestaSeleccionada;
 
     private JLabel     lblPregunta;
@@ -411,6 +412,7 @@ public class JefeFinalPanel extends JPanel {
 
         BossEj ej = boss.ejercicios()[indice];
         respuestaSeleccionada = null;
+        fallosBoss = 0;
         lblFeedback.setText(" ");
         lblPregunta.setText("<html><body style='width:620px'>"
             + "<span style='color:#6c7086; font-size:11px'>DESAFÍO " + (indice + 1) + " / " + boss.ejercicios().length + "</span><br><br>"
@@ -435,7 +437,9 @@ public class JefeFinalPanel extends JPanel {
     private void construirOpciones(String[] opciones) {
         panelRespuesta.setLayout(new GridLayout(0, 2, 10, 8));
         ButtonGroup grupo = new ButtonGroup();
-        for (String op : opciones) {
+        java.util.List<String> mezcladas = new java.util.ArrayList<>(java.util.Arrays.asList(opciones));
+        java.util.Collections.shuffle(mezcladas);
+        for (String op : mezcladas) {
             JToggleButton btn = new JToggleButton(op);
             btn.setFont(new Font("Monospaced", Font.PLAIN, 15));
             btn.setBackground(BG_CARD);
@@ -536,9 +540,15 @@ public class JefeFinalPanel extends JPanel {
             btnAccion.setText(indice < boss.ejercicios().length - 1 ? "Siguiente →" : "Ver resultado →");
             btnAccion.setBackground(GREEN);
         } else {
-            lblFeedback.setForeground(PINK);
-            lblFeedback.setText("✘  " + ej.pista());
+            fallosBoss++;
             SoundPlayer.playWrong();
+            if (fallosBoss >= 2 && ej.pista() != null) {
+                lblFeedback.setForeground(YELLOW);
+                lblFeedback.setText("💡 Pista: " + ej.pista());
+            } else {
+                lblFeedback.setForeground(PINK);
+                lblFeedback.setText("✘  Incorrecto. Inténtalo de nuevo.");
+            }
         }
     }
 
